@@ -1,0 +1,14 @@
+# Runtime dependencies for the FastAPI app (what a hosting platform installs).
+# scikit-learn and lightgbm are pinned to the versions used to save models/*.joblib;
+# a different version can fail to load the models or change their predictions.
+# Development tools (training, EDA, tests, notebook, Streamlit UI): requirements-dev.txt
+# Tested with Python 3.11.9.
+
+pandas==3.0.6
+numpy==2.4.6
+scikit-learn==1.9.1
+lightgbm==4.7.0
+joblib==1.6.0
+fastapi==0.161.1
+uvicorn==0.54.0
+requests==2.34.2

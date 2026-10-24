@@ -1,0 +1,45 @@
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test and tool caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+.streamlit/secrets.toml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Course material that must not be published
+ML_Weather_Predictor_Revised_Blueprint.pdf

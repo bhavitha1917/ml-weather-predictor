@@ -1,0 +1,440 @@
+{
+  "bengaluru": {
+    "city": "Bengaluru",
+    "target_date": "2026-10-26",
+    "last_completed_date": "2026-10-24",
+    "generated_at": "2026-10-25T01:07:36+05:30",
+    "data_source": "live",
+    "predicted_temp": 26.5,
+    "model_breakdown": {
+      "ensemble": 26.5,
+      "lightgbm": 26.8,
+      "random_forest": 26.8,
+      "linear_regression": 26.4
+    },
+    "interval_80": {
+      "lower": 24.7,
+      "upper": 27.8,
+      "p10_offset": -1.86,
+      "p90_offset": 1.21,
+      "method": "ensemble prediction + 10th/90th percentile of out-of-fold training errors",
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 72.3,
+      "test_days": 365
+    },
+    "persistence_baseline": 26.0,
+    "climatology_baseline": 26.4,
+    "current_conditions": {
+      "observed_at": "2026-10-25T01:00",
+      "temperature": 19.9,
+      "humidity": 98,
+      "wind_speed": 4.0,
+      "dew_point": 19.5
+    },
+    "official_forecast": {
+      "temperature_max": 26.8,
+      "date": "2026-10-26",
+      "available": true,
+      "note": "Open-Meteo numerical weather forecast for the target date (reference only)"
+    },
+    "explainable_ai": {
+      "base_value": 28.6,
+      "top_drivers": [
+        {
+          "feature": "temp_lag_0",
+          "label": "Max temperature on day D",
+          "value": 26.0,
+          "contribution": -1.02,
+          "direction": "cooling",
+          "explanation": "Most recent completed day (persistence signal)"
+        },
+        {
+          "feature": "sin_doy",
+          "label": "Season (sine of target day-of-year)",
+          "value": -0.9,
+          "contribution": -0.37,
+          "direction": "cooling",
+          "explanation": "Annual cycle"
+        },
+        {
+          "feature": "temp_lag_1",
+          "label": "Max temperature on day D-1",
+          "value": 27.3,
+          "contribution": -0.15,
+          "direction": "cooling",
+          "explanation": "Short-term persistence"
+        },
+        {
+          "feature": "temp_roll_mean_7",
+          "label": "7-day mean max temperature",
+          "value": 27.4,
+          "contribution": -0.14,
+          "direction": "cooling",
+          "explanation": "Level of the past week"
+        },
+        {
+          "feature": "wind_speed_lag_0",
+          "label": "Max wind speed on day D",
+          "value": 11.3,
+          "contribution": 0.14,
+          "direction": "warming",
+          "explanation": "Mixing and air-mass change"
+        },
+        {
+          "feature": "precip_lag_0",
+          "label": "Rain on day D",
+          "value": 7.7,
+          "contribution": -0.11,
+          "direction": "cooling",
+          "explanation": "Rain and cloud tend to lower max temperature"
+        }
+      ],
+      "model": "lightgbm",
+      "ensemble_weight": 0.014
+    },
+    "input_window": [
+      {
+        "date": "2026-10-18",
+        "temperature_2m_max": 25.6,
+        "relative_humidity_2m_mean": 84.0,
+        "wind_speed_10m_max": 7.9,
+        "precipitation_sum": 5.3
+      },
+      {
+        "date": "2026-10-19",
+        "temperature_2m_max": 28.6,
+        "relative_humidity_2m_mean": 76.0,
+        "wind_speed_10m_max": 10.3,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-20",
+        "temperature_2m_max": 28.7,
+        "relative_humidity_2m_mean": 75.0,
+        "wind_speed_10m_max": 12.8,
+        "precipitation_sum": 0.1
+      },
+      {
+        "date": "2026-10-21",
+        "temperature_2m_max": 27.3,
+        "relative_humidity_2m_mean": 79.0,
+        "wind_speed_10m_max": 18.2,
+        "precipitation_sum": 0.9
+      },
+      {
+        "date": "2026-10-22",
+        "temperature_2m_max": 28.0,
+        "relative_humidity_2m_mean": 87.0,
+        "wind_speed_10m_max": 15.7,
+        "precipitation_sum": 14.7
+      },
+      {
+        "date": "2026-10-23",
+        "temperature_2m_max": 27.3,
+        "relative_humidity_2m_mean": 83.0,
+        "wind_speed_10m_max": 13.1,
+        "precipitation_sum": 1.9
+      },
+      {
+        "date": "2026-10-24",
+        "temperature_2m_max": 26.0,
+        "relative_humidity_2m_mean": 84.0,
+        "wind_speed_10m_max": 11.3,
+        "precipitation_sum": 7.7
+      }
+    ],
+    "is_demo_fallback": false
+  },
+  "delhi": {
+    "city": "Delhi",
+    "target_date": "2026-10-26",
+    "last_completed_date": "2026-10-24",
+    "generated_at": "2026-10-25T01:07:37+05:30",
+    "data_source": "live",
+    "predicted_temp": 30.3,
+    "model_breakdown": {
+      "ensemble": 30.3,
+      "lightgbm": 29.8,
+      "random_forest": 29.5,
+      "linear_regression": 30.6
+    },
+    "interval_80": {
+      "lower": 27.9,
+      "upper": 32.5,
+      "p10_offset": -2.46,
+      "p90_offset": 2.18,
+      "method": "ensemble prediction + 10th/90th percentile of out-of-fold training errors",
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 77.5,
+      "test_days": 365
+    },
+    "persistence_baseline": 30.9,
+    "climatology_baseline": 29.9,
+    "current_conditions": {
+      "observed_at": "2026-10-25T01:00",
+      "temperature": 22.1,
+      "humidity": 71,
+      "wind_speed": 6.0,
+      "dew_point": 16.5
+    },
+    "official_forecast": {
+      "temperature_max": 30.3,
+      "date": "2026-10-26",
+      "available": true,
+      "note": "Open-Meteo numerical weather forecast for the target date (reference only)"
+    },
+    "explainable_ai": {
+      "base_value": 30.3,
+      "top_drivers": [
+        {
+          "feature": "temp_roll_mean_7",
+          "label": "7-day mean max temperature",
+          "value": 30.1,
+          "contribution": 0.73,
+          "direction": "warming",
+          "explanation": "Level of the past week"
+        },
+        {
+          "feature": "sin_doy",
+          "label": "Season (sine of target day-of-year)",
+          "value": -0.9,
+          "contribution": -0.41,
+          "direction": "cooling",
+          "explanation": "Annual cycle"
+        },
+        {
+          "feature": "cos_doy",
+          "label": "Season (cosine of target day-of-year)",
+          "value": 0.4,
+          "contribution": -0.41,
+          "direction": "cooling",
+          "explanation": "Annual cycle"
+        },
+        {
+          "feature": "temp_lag_0",
+          "label": "Max temperature on day D",
+          "value": 30.9,
+          "contribution": -0.31,
+          "direction": "cooling",
+          "explanation": "Most recent completed day (persistence signal)"
+        },
+        {
+          "feature": "temp_lag_1",
+          "label": "Max temperature on day D-1",
+          "value": 30.4,
+          "contribution": 0.16,
+          "direction": "warming",
+          "explanation": "Short-term persistence"
+        },
+        {
+          "feature": "precip_lag_0",
+          "label": "Rain on day D",
+          "value": 0.3,
+          "contribution": -0.1,
+          "direction": "cooling",
+          "explanation": "Rain and cloud tend to lower max temperature"
+        }
+      ],
+      "model": "lightgbm",
+      "ensemble_weight": 0.0
+    },
+    "input_window": [
+      {
+        "date": "2026-10-18",
+        "temperature_2m_max": 29.4,
+        "relative_humidity_2m_mean": 68.0,
+        "wind_speed_10m_max": 7.4,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-19",
+        "temperature_2m_max": 29.8,
+        "relative_humidity_2m_mean": 64.0,
+        "wind_speed_10m_max": 10.6,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-20",
+        "temperature_2m_max": 29.7,
+        "relative_humidity_2m_mean": 67.0,
+        "wind_speed_10m_max": 8.2,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-21",
+        "temperature_2m_max": 30.2,
+        "relative_humidity_2m_mean": 65.0,
+        "wind_speed_10m_max": 4.8,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-22",
+        "temperature_2m_max": 30.3,
+        "relative_humidity_2m_mean": 67.0,
+        "wind_speed_10m_max": 7.3,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-23",
+        "temperature_2m_max": 30.4,
+        "relative_humidity_2m_mean": 65.0,
+        "wind_speed_10m_max": 16.4,
+        "precipitation_sum": 0.4
+      },
+      {
+        "date": "2026-10-24",
+        "temperature_2m_max": 30.9,
+        "relative_humidity_2m_mean": 60.0,
+        "wind_speed_10m_max": 7.7,
+        "precipitation_sum": 0.3
+      }
+    ],
+    "is_demo_fallback": false
+  },
+  "mumbai": {
+    "city": "Mumbai",
+    "target_date": "2026-10-26",
+    "last_completed_date": "2026-10-24",
+    "generated_at": "2026-10-25T01:07:38+05:30",
+    "data_source": "live",
+    "predicted_temp": 31.2,
+    "model_breakdown": {
+      "ensemble": 31.2,
+      "lightgbm": 29.9,
+      "random_forest": 29.2,
+      "linear_regression": 32.5
+    },
+    "interval_80": {
+      "lower": 29.7,
+      "upper": 33.2,
+      "p10_offset": -1.52,
+      "p90_offset": 2.03,
+      "method": "ensemble prediction + 10th/90th percentile of out-of-fold training errors",
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 81.1,
+      "test_days": 365
+    },
+    "persistence_baseline": 33.8,
+    "climatology_baseline": 29.6,
+    "current_conditions": {
+      "observed_at": "2026-10-25T01:00",
+      "temperature": 28.2,
+      "humidity": 70,
+      "wind_speed": 1.8,
+      "dew_point": 22.3
+    },
+    "official_forecast": {
+      "temperature_max": 36.8,
+      "date": "2026-10-26",
+      "available": true,
+      "note": "Open-Meteo numerical weather forecast for the target date (reference only)"
+    },
+    "explainable_ai": {
+      "base_value": 30.2,
+      "top_drivers": [
+        {
+          "feature": "precip_lag_0",
+          "label": "Rain on day D",
+          "value": 3.2,
+          "contribution": -1.07,
+          "direction": "cooling",
+          "explanation": "Rain and cloud tend to lower max temperature"
+        },
+        {
+          "feature": "temp_lag_0",
+          "label": "Max temperature on day D",
+          "value": 33.8,
+          "contribution": 1.04,
+          "direction": "warming",
+          "explanation": "Most recent completed day (persistence signal)"
+        },
+        {
+          "feature": "sin_doy",
+          "label": "Season (sine of target day-of-year)",
+          "value": -0.9,
+          "contribution": -0.51,
+          "direction": "cooling",
+          "explanation": "Annual cycle"
+        },
+        {
+          "feature": "temp_roll_mean_7",
+          "label": "7-day mean max temperature",
+          "value": 36.1,
+          "contribution": 0.26,
+          "direction": "warming",
+          "explanation": "Level of the past week"
+        },
+        {
+          "feature": "sin_doy_semi",
+          "label": "Semi-annual cycle (sine)",
+          "value": -0.8,
+          "contribution": 0.24,
+          "direction": "warming",
+          "explanation": "Second harmonic of the annual cycle"
+        },
+        {
+          "feature": "temp_lag_4",
+          "label": "Max temperature on day D-4",
+          "value": 35.9,
+          "contribution": -0.09,
+          "direction": "cooling",
+          "explanation": "Recent temperature history"
+        }
+      ],
+      "model": "lightgbm",
+      "ensemble_weight": 0.062
+    },
+    "input_window": [
+      {
+        "date": "2026-10-18",
+        "temperature_2m_max": 35.7,
+        "relative_humidity_2m_mean": 71.0,
+        "wind_speed_10m_max": 9.8,
+        "precipitation_sum": 0.7
+      },
+      {
+        "date": "2026-10-19",
+        "temperature_2m_max": 36.7,
+        "relative_humidity_2m_mean": 64.0,
+        "wind_speed_10m_max": 9.0,
+        "precipitation_sum": 1.9
+      },
+      {
+        "date": "2026-10-20",
+        "temperature_2m_max": 35.9,
+        "relative_humidity_2m_mean": 69.0,
+        "wind_speed_10m_max": 10.7,
+        "precipitation_sum": 1.6
+      },
+      {
+        "date": "2026-10-21",
+        "temperature_2m_max": 37.1,
+        "relative_humidity_2m_mean": 54.0,
+        "wind_speed_10m_max": 13.0,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-22",
+        "temperature_2m_max": 37.1,
+        "relative_humidity_2m_mean": 49.0,
+        "wind_speed_10m_max": 11.2,
+        "precipitation_sum": 0.0
+      },
+      {
+        "date": "2026-10-23",
+        "temperature_2m_max": 36.7,
+        "relative_humidity_2m_mean": 54.0,
+        "wind_speed_10m_max": 11.8,
+        "precipitation_sum": 1.9
+      },
+      {
+        "date": "2026-10-24",
+        "temperature_2m_max": 33.8,
+        "relative_humidity_2m_mean": 67.0,
+        "wind_speed_10m_max": 11.5,
+        "precipitation_sum": 3.2
+      }
+    ],
+    "is_demo_fallback": false
+  }
+}

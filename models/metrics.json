@@ -1,0 +1,575 @@
+{
+  "bengaluru": {
+    "city": "Bengaluru",
+    "best_rf_params": {
+      "n_estimators": 100,
+      "max_depth": 8,
+      "min_samples_split": 5
+    },
+    "best_lgb_params": {
+      "n_estimators": 80,
+      "max_depth": 5,
+      "learning_rate": 0.05,
+      "num_leaves": 15
+    },
+    "ensemble_weights": [
+      0.014,
+      0.274,
+      0.712
+    ],
+    "interval_80": {
+      "p10": -1.86,
+      "p90": 1.21
+    },
+    "test_coverage_pct": 69.6,
+    "quantile_coverage_pct": 66.8,
+    "top_shap_features": [
+      {
+        "feature": "temp_lag_0",
+        "mean_abs_shap": 1.0567
+      },
+      {
+        "feature": "sin_doy",
+        "mean_abs_shap": 0.4677
+      },
+      {
+        "feature": "temp_roll_mean_7",
+        "mean_abs_shap": 0.326
+      },
+      {
+        "feature": "temp_lag_1",
+        "mean_abs_shap": 0.131
+      },
+      {
+        "feature": "cos_doy",
+        "mean_abs_shap": 0.0883
+      },
+      {
+        "feature": "sin_doy_semi",
+        "mean_abs_shap": 0.0877
+      },
+      {
+        "feature": "temp_lag_3",
+        "mean_abs_shap": 0.0765
+      }
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.024,
+        "rmse": 1.28
+      },
+      "random_forest": {
+        "mae": 1.115,
+        "rmse": 1.385
+      },
+      "lightgbm": {
+        "mae": 1.075,
+        "rmse": 1.335
+      },
+      "linear_regression": {
+        "mae": 1.021,
+        "rmse": 1.274
+      },
+      "persistence": {
+        "mae": 1.01,
+        "rmse": 1.376
+      },
+      "climatology": {
+        "mae": 1.737,
+        "rmse": 2.177
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 0.798,
+          "rmse": 1.018
+        },
+        "random_forest": {
+          "mae": 0.873,
+          "rmse": 1.114
+        },
+        "lightgbm": {
+          "mae": 0.896,
+          "rmse": 1.119
+        },
+        "linear_regression": {
+          "mae": 0.79,
+          "rmse": 1.008
+        },
+        "persistence": {
+          "mae": 0.827,
+          "rmse": 1.191
+        },
+        "climatology": {
+          "mae": 1.276,
+          "rmse": 1.594
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 1.155,
+          "rmse": 1.493
+        },
+        "random_forest": {
+          "mae": 1.27,
+          "rmse": 1.604
+        },
+        "lightgbm": {
+          "mae": 1.187,
+          "rmse": 1.529
+        },
+        "linear_regression": {
+          "mae": 1.177,
+          "rmse": 1.498
+        },
+        "persistence": {
+          "mae": 1.289,
+          "rmse": 1.634
+        },
+        "climatology": {
+          "mae": 1.598,
+          "rmse": 2.122
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 1.095,
+          "rmse": 1.276
+        },
+        "random_forest": {
+          "mae": 1.179,
+          "rmse": 1.378
+        },
+        "lightgbm": {
+          "mae": 1.164,
+          "rmse": 1.357
+        },
+        "linear_regression": {
+          "mae": 1.069,
+          "rmse": 1.26
+        },
+        "persistence": {
+          "mae": 0.98,
+          "rmse": 1.361
+        },
+        "climatology": {
+          "mae": 1.768,
+          "rmse": 2.147
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 1.021,
+          "rmse": 1.285
+        },
+        "random_forest": {
+          "mae": 1.111,
+          "rmse": 1.402
+        },
+        "lightgbm": {
+          "mae": 0.994,
+          "rmse": 1.266
+        },
+        "linear_regression": {
+          "mae": 1.034,
+          "rmse": 1.285
+        },
+        "persistence": {
+          "mae": 0.921,
+          "rmse": 1.221
+        },
+        "climatology": {
+          "mae": 2.565,
+          "rmse": 2.931
+        }
+      }
+    }
+  },
+  "delhi": {
+    "city": "Delhi",
+    "best_rf_params": {
+      "n_estimators": 200,
+      "max_depth": null,
+      "min_samples_split": 4
+    },
+    "best_lgb_params": {
+      "n_estimators": 80,
+      "max_depth": 5,
+      "learning_rate": 0.05,
+      "num_leaves": 15
+    },
+    "ensemble_weights": [
+      0.0,
+      0.256,
+      0.744
+    ],
+    "interval_80": {
+      "p10": -2.46,
+      "p90": 2.18
+    },
+    "test_coverage_pct": 77.3,
+    "quantile_coverage_pct": 75.3,
+    "top_shap_features": [
+      {
+        "feature": "temp_lag_0",
+        "mean_abs_shap": 2.6056
+      },
+      {
+        "feature": "temp_roll_mean_7",
+        "mean_abs_shap": 1.5799
+      },
+      {
+        "feature": "cos_doy",
+        "mean_abs_shap": 0.9248
+      },
+      {
+        "feature": "sin_doy",
+        "mean_abs_shap": 0.419
+      },
+      {
+        "feature": "temp_lag_1",
+        "mean_abs_shap": 0.2072
+      },
+      {
+        "feature": "humidity_lag_0",
+        "mean_abs_shap": 0.1825
+      },
+      {
+        "feature": "precip_lag_0",
+        "mean_abs_shap": 0.1671
+      }
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.502,
+        "rmse": 1.994
+      },
+      "random_forest": {
+        "mae": 1.567,
+        "rmse": 2.091
+      },
+      "lightgbm": {
+        "mae": 1.561,
+        "rmse": 2.044
+      },
+      "linear_regression": {
+        "mae": 1.517,
+        "rmse": 2.009
+      },
+      "persistence": {
+        "mae": 1.616,
+        "rmse": 2.188
+      },
+      "climatology": {
+        "mae": 2.616,
+        "rmse": 3.287
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 1.443,
+          "rmse": 1.793
+        },
+        "random_forest": {
+          "mae": 1.475,
+          "rmse": 1.844
+        },
+        "lightgbm": {
+          "mae": 1.444,
+          "rmse": 1.8
+        },
+        "linear_regression": {
+          "mae": 1.466,
+          "rmse": 1.821
+        },
+        "persistence": {
+          "mae": 1.613,
+          "rmse": 1.961
+        },
+        "climatology": {
+          "mae": 2.374,
+          "rmse": 2.82
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 2.066,
+          "rmse": 2.654
+        },
+        "random_forest": {
+          "mae": 2.167,
+          "rmse": 2.808
+        },
+        "lightgbm": {
+          "mae": 2.185,
+          "rmse": 2.743
+        },
+        "linear_regression": {
+          "mae": 2.078,
+          "rmse": 2.646
+        },
+        "persistence": {
+          "mae": 2.152,
+          "rmse": 2.802
+        },
+        "climatology": {
+          "mae": 4.037,
+          "rmse": 4.744
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 1.39,
+          "rmse": 1.805
+        },
+        "random_forest": {
+          "mae": 1.426,
+          "rmse": 1.874
+        },
+        "lightgbm": {
+          "mae": 1.432,
+          "rmse": 1.826
+        },
+        "linear_regression": {
+          "mae": 1.418,
+          "rmse": 1.845
+        },
+        "persistence": {
+          "mae": 1.514,
+          "rmse": 2.074
+        },
+        "climatology": {
+          "mae": 2.311,
+          "rmse": 2.809
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 0.962,
+          "rmse": 1.384
+        },
+        "random_forest": {
+          "mae": 1.079,
+          "rmse": 1.494
+        },
+        "lightgbm": {
+          "mae": 1.054,
+          "rmse": 1.483
+        },
+        "linear_regression": {
+          "mae": 0.94,
+          "rmse": 1.373
+        },
+        "persistence": {
+          "mae": 1.018,
+          "rmse": 1.586
+        },
+        "climatology": {
+          "mae": 1.441,
+          "rmse": 1.79
+        }
+      }
+    }
+  },
+  "mumbai": {
+    "city": "Mumbai",
+    "best_rf_params": {
+      "n_estimators": 100,
+      "max_depth": 8,
+      "min_samples_split": 5
+    },
+    "best_lgb_params": {
+      "n_estimators": 80,
+      "max_depth": 5,
+      "learning_rate": 0.05,
+      "num_leaves": 15
+    },
+    "ensemble_weights": [
+      0.062,
+      0.339,
+      0.599
+    ],
+    "interval_80": {
+      "p10": -1.52,
+      "p90": 2.03
+    },
+    "test_coverage_pct": 79.7,
+    "quantile_coverage_pct": 60.0,
+    "top_shap_features": [
+      {
+        "feature": "temp_lag_0",
+        "mean_abs_shap": 1.0722
+      },
+      {
+        "feature": "temp_roll_mean_7",
+        "mean_abs_shap": 0.3746
+      },
+      {
+        "feature": "sin_doy",
+        "mean_abs_shap": 0.2934
+      },
+      {
+        "feature": "sin_doy_semi",
+        "mean_abs_shap": 0.2006
+      },
+      {
+        "feature": "precip_lag_0",
+        "mean_abs_shap": 0.1749
+      },
+      {
+        "feature": "cos_doy",
+        "mean_abs_shap": 0.0949
+      },
+      {
+        "feature": "humidity_lag_0",
+        "mean_abs_shap": 0.0939
+      }
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.215,
+        "rmse": 1.504
+      },
+      "random_forest": {
+        "mae": 1.351,
+        "rmse": 1.676
+      },
+      "lightgbm": {
+        "mae": 1.307,
+        "rmse": 1.634
+      },
+      "linear_regression": {
+        "mae": 1.169,
+        "rmse": 1.462
+      },
+      "persistence": {
+        "mae": 1.068,
+        "rmse": 1.48
+      },
+      "climatology": {
+        "mae": 1.92,
+        "rmse": 2.352
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 1.545,
+          "rmse": 1.875
+        },
+        "random_forest": {
+          "mae": 1.587,
+          "rmse": 1.925
+        },
+        "lightgbm": {
+          "mae": 1.585,
+          "rmse": 1.896
+        },
+        "linear_regression": {
+          "mae": 1.536,
+          "rmse": 1.892
+        },
+        "persistence": {
+          "mae": 1.577,
+          "rmse": 2.073
+        },
+        "climatology": {
+          "mae": 2.233,
+          "rmse": 2.623
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 1.279,
+          "rmse": 1.568
+        },
+        "random_forest": {
+          "mae": 1.342,
+          "rmse": 1.689
+        },
+        "lightgbm": {
+          "mae": 1.323,
+          "rmse": 1.704
+        },
+        "linear_regression": {
+          "mae": 1.285,
+          "rmse": 1.55
+        },
+        "persistence": {
+          "mae": 1.009,
+          "rmse": 1.421
+        },
+        "climatology": {
+          "mae": 2.189,
+          "rmse": 2.68
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 0.833,
+          "rmse": 1.028
+        },
+        "random_forest": {
+          "mae": 0.956,
+          "rmse": 1.175
+        },
+        "lightgbm": {
+          "mae": 0.902,
+          "rmse": 1.121
+        },
+        "linear_regression": {
+          "mae": 0.805,
+          "rmse": 1.008
+        },
+        "persistence": {
+          "mae": 0.811,
+          "rmse": 1.061
+        },
+        "climatology": {
+          "mae": 1.269,
+          "rmse": 1.566
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 1.398,
+          "rmse": 1.588
+        },
+        "random_forest": {
+          "mae": 1.805,
+          "rmse": 2.067
+        },
+        "lightgbm": {
+          "mae": 1.684,
+          "rmse": 1.947
+        },
+        "linear_regression": {
+          "mae": 1.179,
+          "rmse": 1.357
+        },
+        "persistence": {
+          "mae": 0.921,
+          "rmse": 1.208
+        },
+        "climatology": {
+          "mae": 2.353,
+          "rmse": 2.685
+        }
+      }
+    }
+  }
+}

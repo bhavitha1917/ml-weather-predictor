@@ -1,0 +1,12 @@
+# Everything needed to reproduce the analysis and run the tests locally:
+# data fetching, EDA figures, training, evaluation, notebook execution, tests, Streamlit UI.
+-r requirements.txt
+
+matplotlib==3.11.2
+seaborn==0.13.2
+pytest==9.1.1
+httpx==0.28.1
+streamlit==1.66.1
+nbformat==5.11.1
+nbclient==0.11.0
+ipykernel==7.4.0

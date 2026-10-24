@@ -1,0 +1,575 @@
+{
+  "bengaluru": {
+    "n_train": 1453,
+    "n_test": 365,
+    "test_period": [
+      "2023-01-01",
+      "2023-12-31"
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.024,
+        "rmse": 1.28
+      },
+      "random_forest": {
+        "mae": 1.115,
+        "rmse": 1.385
+      },
+      "lightgbm": {
+        "mae": 1.075,
+        "rmse": 1.335
+      },
+      "linear_regression": {
+        "mae": 1.021,
+        "rmse": 1.274
+      },
+      "persistence": {
+        "mae": 1.01,
+        "rmse": 1.376
+      },
+      "climatology": {
+        "mae": 1.737,
+        "rmse": 2.177
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 0.798,
+          "rmse": 1.018
+        },
+        "random_forest": {
+          "mae": 0.873,
+          "rmse": 1.114
+        },
+        "lightgbm": {
+          "mae": 0.896,
+          "rmse": 1.119
+        },
+        "linear_regression": {
+          "mae": 0.79,
+          "rmse": 1.008
+        },
+        "persistence": {
+          "mae": 0.827,
+          "rmse": 1.191
+        },
+        "climatology": {
+          "mae": 1.276,
+          "rmse": 1.594
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 1.155,
+          "rmse": 1.493
+        },
+        "random_forest": {
+          "mae": 1.27,
+          "rmse": 1.604
+        },
+        "lightgbm": {
+          "mae": 1.187,
+          "rmse": 1.529
+        },
+        "linear_regression": {
+          "mae": 1.177,
+          "rmse": 1.498
+        },
+        "persistence": {
+          "mae": 1.289,
+          "rmse": 1.634
+        },
+        "climatology": {
+          "mae": 1.598,
+          "rmse": 2.122
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 1.095,
+          "rmse": 1.276
+        },
+        "random_forest": {
+          "mae": 1.179,
+          "rmse": 1.378
+        },
+        "lightgbm": {
+          "mae": 1.164,
+          "rmse": 1.357
+        },
+        "linear_regression": {
+          "mae": 1.069,
+          "rmse": 1.26
+        },
+        "persistence": {
+          "mae": 0.98,
+          "rmse": 1.361
+        },
+        "climatology": {
+          "mae": 1.768,
+          "rmse": 2.147
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 1.021,
+          "rmse": 1.285
+        },
+        "random_forest": {
+          "mae": 1.111,
+          "rmse": 1.402
+        },
+        "lightgbm": {
+          "mae": 0.994,
+          "rmse": 1.266
+        },
+        "linear_regression": {
+          "mae": 1.034,
+          "rmse": 1.285
+        },
+        "persistence": {
+          "mae": 0.921,
+          "rmse": 1.221
+        },
+        "climatology": {
+          "mae": 2.565,
+          "rmse": 2.931
+        }
+      }
+    },
+    "max_abs_diff_vs_metrics_json": 0.0,
+    "main_model": "ensemble",
+    "main_model_beats": {
+      "persistence": {
+        "mae": false,
+        "rmse": true
+      },
+      "climatology": {
+        "mae": true,
+        "rmse": true
+      }
+    },
+    "best_model_by_test_mae": "persistence",
+    "served_interval": {
+      "method": "ensemble prediction + [p10, p90] of out-of-fold training residuals",
+      "p10": -1.86,
+      "p90": 1.21,
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 72.3,
+      "test_coverage_approx_95ci": [
+        67.7,
+        76.9
+      ],
+      "test_coverage_by_season": {
+        "Winter": 82.2,
+        "Pre-monsoon": 69.6,
+        "Monsoon": 70.5,
+        "Post-monsoon": 65.6
+      },
+      "test_mean_residual": 0.34
+    },
+    "quantile_models_reference": {
+      "note": "LightGBM quantile models (alpha 0.1/0.9) trained by src/train.py; not served",
+      "test_coverage_pct": 66.8
+    },
+    "validation": {
+      "n_oof": 1210,
+      "mae": {
+        "ensemble": 0.981,
+        "random_forest": 1.043,
+        "lightgbm": 1.068,
+        "linear_regression": 0.99,
+        "persistence": 1.115
+      },
+      "reproduced_p10": -1.86,
+      "reproduced_p90": 1.21
+    }
+  },
+  "delhi": {
+    "n_train": 1453,
+    "n_test": 365,
+    "test_period": [
+      "2023-01-01",
+      "2023-12-31"
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.502,
+        "rmse": 1.994
+      },
+      "random_forest": {
+        "mae": 1.567,
+        "rmse": 2.091
+      },
+      "lightgbm": {
+        "mae": 1.561,
+        "rmse": 2.044
+      },
+      "linear_regression": {
+        "mae": 1.517,
+        "rmse": 2.009
+      },
+      "persistence": {
+        "mae": 1.616,
+        "rmse": 2.188
+      },
+      "climatology": {
+        "mae": 2.616,
+        "rmse": 3.287
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 1.443,
+          "rmse": 1.793
+        },
+        "random_forest": {
+          "mae": 1.475,
+          "rmse": 1.844
+        },
+        "lightgbm": {
+          "mae": 1.444,
+          "rmse": 1.8
+        },
+        "linear_regression": {
+          "mae": 1.466,
+          "rmse": 1.821
+        },
+        "persistence": {
+          "mae": 1.613,
+          "rmse": 1.961
+        },
+        "climatology": {
+          "mae": 2.374,
+          "rmse": 2.82
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 2.066,
+          "rmse": 2.654
+        },
+        "random_forest": {
+          "mae": 2.167,
+          "rmse": 2.808
+        },
+        "lightgbm": {
+          "mae": 2.185,
+          "rmse": 2.743
+        },
+        "linear_regression": {
+          "mae": 2.078,
+          "rmse": 2.646
+        },
+        "persistence": {
+          "mae": 2.152,
+          "rmse": 2.802
+        },
+        "climatology": {
+          "mae": 4.037,
+          "rmse": 4.744
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 1.39,
+          "rmse": 1.805
+        },
+        "random_forest": {
+          "mae": 1.426,
+          "rmse": 1.874
+        },
+        "lightgbm": {
+          "mae": 1.432,
+          "rmse": 1.826
+        },
+        "linear_regression": {
+          "mae": 1.418,
+          "rmse": 1.845
+        },
+        "persistence": {
+          "mae": 1.514,
+          "rmse": 2.074
+        },
+        "climatology": {
+          "mae": 2.311,
+          "rmse": 2.809
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 0.962,
+          "rmse": 1.384
+        },
+        "random_forest": {
+          "mae": 1.079,
+          "rmse": 1.494
+        },
+        "lightgbm": {
+          "mae": 1.054,
+          "rmse": 1.483
+        },
+        "linear_regression": {
+          "mae": 0.94,
+          "rmse": 1.373
+        },
+        "persistence": {
+          "mae": 1.018,
+          "rmse": 1.586
+        },
+        "climatology": {
+          "mae": 1.441,
+          "rmse": 1.79
+        }
+      }
+    },
+    "max_abs_diff_vs_metrics_json": 0.0,
+    "main_model": "ensemble",
+    "main_model_beats": {
+      "persistence": {
+        "mae": true,
+        "rmse": true
+      },
+      "climatology": {
+        "mae": true,
+        "rmse": true
+      }
+    },
+    "best_model_by_test_mae": "ensemble",
+    "served_interval": {
+      "method": "ensemble prediction + [p10, p90] of out-of-fold training residuals",
+      "p10": -2.46,
+      "p90": 2.18,
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 77.5,
+      "test_coverage_approx_95ci": [
+        73.3,
+        81.8
+      ],
+      "test_coverage_by_season": {
+        "Winter": 77.8,
+        "Pre-monsoon": 63.0,
+        "Monsoon": 81.1,
+        "Post-monsoon": 91.8
+      },
+      "test_mean_residual": 0.02
+    },
+    "quantile_models_reference": {
+      "note": "LightGBM quantile models (alpha 0.1/0.9) trained by src/train.py; not served",
+      "test_coverage_pct": 75.3
+    },
+    "validation": {
+      "n_oof": 1210,
+      "mae": {
+        "ensemble": 1.504,
+        "random_forest": 1.714,
+        "lightgbm": 1.767,
+        "linear_regression": 1.53,
+        "persistence": 1.588
+      },
+      "reproduced_p10": -2.46,
+      "reproduced_p90": 2.18
+    }
+  },
+  "mumbai": {
+    "n_train": 1453,
+    "n_test": 365,
+    "test_period": [
+      "2023-01-01",
+      "2023-12-31"
+    ],
+    "overall": {
+      "ensemble": {
+        "mae": 1.215,
+        "rmse": 1.504
+      },
+      "random_forest": {
+        "mae": 1.351,
+        "rmse": 1.676
+      },
+      "lightgbm": {
+        "mae": 1.307,
+        "rmse": 1.634
+      },
+      "linear_regression": {
+        "mae": 1.169,
+        "rmse": 1.462
+      },
+      "persistence": {
+        "mae": 1.068,
+        "rmse": 1.48
+      },
+      "climatology": {
+        "mae": 1.92,
+        "rmse": 2.352
+      }
+    },
+    "by_season": {
+      "Winter": {
+        "count": 90,
+        "ensemble": {
+          "mae": 1.545,
+          "rmse": 1.875
+        },
+        "random_forest": {
+          "mae": 1.587,
+          "rmse": 1.925
+        },
+        "lightgbm": {
+          "mae": 1.585,
+          "rmse": 1.896
+        },
+        "linear_regression": {
+          "mae": 1.536,
+          "rmse": 1.892
+        },
+        "persistence": {
+          "mae": 1.577,
+          "rmse": 2.073
+        },
+        "climatology": {
+          "mae": 2.233,
+          "rmse": 2.623
+        }
+      },
+      "Pre-monsoon": {
+        "count": 92,
+        "ensemble": {
+          "mae": 1.279,
+          "rmse": 1.568
+        },
+        "random_forest": {
+          "mae": 1.342,
+          "rmse": 1.689
+        },
+        "lightgbm": {
+          "mae": 1.323,
+          "rmse": 1.704
+        },
+        "linear_regression": {
+          "mae": 1.285,
+          "rmse": 1.55
+        },
+        "persistence": {
+          "mae": 1.009,
+          "rmse": 1.421
+        },
+        "climatology": {
+          "mae": 2.189,
+          "rmse": 2.68
+        }
+      },
+      "Monsoon": {
+        "count": 122,
+        "ensemble": {
+          "mae": 0.833,
+          "rmse": 1.028
+        },
+        "random_forest": {
+          "mae": 0.956,
+          "rmse": 1.175
+        },
+        "lightgbm": {
+          "mae": 0.902,
+          "rmse": 1.121
+        },
+        "linear_regression": {
+          "mae": 0.805,
+          "rmse": 1.008
+        },
+        "persistence": {
+          "mae": 0.811,
+          "rmse": 1.061
+        },
+        "climatology": {
+          "mae": 1.269,
+          "rmse": 1.566
+        }
+      },
+      "Post-monsoon": {
+        "count": 61,
+        "ensemble": {
+          "mae": 1.398,
+          "rmse": 1.588
+        },
+        "random_forest": {
+          "mae": 1.805,
+          "rmse": 2.067
+        },
+        "lightgbm": {
+          "mae": 1.684,
+          "rmse": 1.947
+        },
+        "linear_regression": {
+          "mae": 1.179,
+          "rmse": 1.357
+        },
+        "persistence": {
+          "mae": 0.921,
+          "rmse": 1.208
+        },
+        "climatology": {
+          "mae": 2.353,
+          "rmse": 2.685
+        }
+      }
+    },
+    "max_abs_diff_vs_metrics_json": 0.0,
+    "main_model": "ensemble",
+    "main_model_beats": {
+      "persistence": {
+        "mae": false,
+        "rmse": false
+      },
+      "climatology": {
+        "mae": true,
+        "rmse": true
+      }
+    },
+    "best_model_by_test_mae": "persistence",
+    "served_interval": {
+      "method": "ensemble prediction + [p10, p90] of out-of-fold training residuals",
+      "p10": -1.52,
+      "p90": 2.03,
+      "nominal_coverage_pct": 80.0,
+      "test_coverage_pct": 81.1,
+      "test_coverage_approx_95ci": [
+        77.1,
+        85.1
+      ],
+      "test_coverage_by_season": {
+        "Winter": 70.0,
+        "Pre-monsoon": 72.8,
+        "Monsoon": 95.9,
+        "Post-monsoon": 80.3
+      },
+      "test_mean_residual": 0.52
+    },
+    "quantile_models_reference": {
+      "note": "LightGBM quantile models (alpha 0.1/0.9) trained by src/train.py; not served",
+      "test_coverage_pct": 60.0
+    },
+    "validation": {
+      "n_oof": 1210,
+      "mae": {
+        "ensemble": 1.095,
+        "random_forest": 1.129,
+        "lightgbm": 1.155,
+        "linear_regression": 1.129,
+        "persistence": 1.2
+      },
+      "reproduced_p10": -1.52,
+      "reproduced_p90": 2.03
+    }
+  }
+}

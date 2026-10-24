@@ -1,0 +1,11 @@
+# Render Blueprint: one Python web service that serves the FastAPI API and the dashboard
+# (frontend/, figures/) from the same origin, so no CORS configuration is needed.
+# Python version comes from .python-version (3.11.9).
+services:
+  - type: web
+    name: ml-weather-predictor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health

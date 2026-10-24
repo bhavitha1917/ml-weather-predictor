@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Weather Predictor & Dashboard | Tomorrow's Max Temperature</title>
+    <!-- Google Fonts: Inter font weights 300, 400, 500, 600, 700 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="background-glow glow-1"></div>
+    <div class="background-glow glow-2"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation & Header -->
+        <header class="app-header">
+            <div class="header-branding">
+                <div class="logo-badge">
+                    <span class="pulsing-dot"></span>
+                    <span>ML WEATHER PREDICTOR</span>
+                </div>
+                <h1 class="main-title">Tomorrow's Maximum Temperature Forecast</h1>
+                <p class="subtitle">Trained on 2019–2022 daily data • Tested on the held-out year 2023 against two baselines • 80% interval from past model errors</p>
+            </div>
+
+            <div class="header-controls">
+                <div class="control-group">
+                    <label for="city-select">SELECT CITY</label>
+                    <select id="city-select" class="glass-select">
+                        <option value="Bengaluru" selected>Bengaluru</option>
+                        <option value="Delhi">Delhi</option>
+                        <option value="Mumbai">Mumbai</option>
+                    </select>
+                </div>
+                <div class="api-status-badge" id="api-status">
+                    <span class="status-indicator"></span>
+                    <span id="status-text">Connecting API...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Offline / Demo Data Alert Banner -->
+        <div id="demo-banner" class="demo-banner hidden" role="status">
+            <div class="banner-content">
+                <span class="banner-icon" aria-hidden="true">⚡</span>
+                <span id="banner-text"><strong>Demo snapshot:</strong> live weather data could not be used.</span>
+            </div>
+        </div>
+
+        <!-- Error state: shown when no prediction (live or demo) could be loaded -->
+        <div id="error-state" class="error-panel hidden" role="alert">
+            <strong>Prediction unavailable.</strong>
+            <span id="error-text"></span>
+            <button id="retry-btn" class="retry-btn" type="button">Retry</button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs" role="tablist" aria-label="Dashboard sections">
+            <button class="tab-btn active" data-tab="dashboard-tab" id="btn-dashboard" role="tab" aria-selected="true" aria-controls="dashboard-tab">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Prediction Dashboard
+            </button>
+            <button class="tab-btn" data-tab="simulator-tab" id="btn-simulator" role="tab" aria-selected="false" aria-controls="simulator-tab" tabindex="-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                What-If Simulator
+            </button>
+            <button class="tab-btn" data-tab="eda-tab" id="btn-eda" role="tab" aria-selected="false" aria-controls="eda-tab" tabindex="-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                EDA Figures
+            </button>
+        </nav>
+
+        <!-- Loading State Spinner -->
+        <div id="loading-state" class="loading-container hidden" role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Fetching the last completed days and computing features (the first request can take up to a minute if the server was asleep)...</p>
+        </div>
+
+        <!-- TAB 1: Main Dashboard -->
+        <main id="dashboard-tab" class="tab-pane active" role="tabpanel" aria-labelledby="btn-dashboard">
+            <div class="dashboard-grid">
+
+                <!-- CARD 1: Hero Prediction Card -->
+                <section class="glass-card prediction-card">
+                    <div class="card-header">
+                        <span class="card-tag">ENSEMBLE PREDICTION</span>
+                        <span class="card-date" id="target-date-display">Target date: --</span>
+                    </div>
+
+                    <div class="hero-temp-wrapper">
+                        <div class="city-name-sub" id="hero-city-name">Bengaluru</div>
+                        <div class="big-temperature">
+                            <span id="predicted-temp-val" class="temp-num">--.-</span>
+                            <span class="temp-unit">°C</span>
+                        </div>
+                        <div class="horizon-badge">
+                            Weighted blend of Ridge regression, Random Forest and LightGBM
+                        </div>
+                    </div>
+
+                    <!-- 80% prediction interval -->
+                    <div class="interval-container">
+                        <div class="interval-header">
+                            <span class="interval-title">80% prediction interval</span>
+                            <span class="interval-range" id="interval-range-text">[--.-°C, --.-°C]</span>
+                        </div>
+                        <div class="interval-stats-sub" id="interval-city-stats">
+                            Measured coverage on the 2023 test year: --
+                        </div>
+                        <p class="interval-caption">
+                            Prediction + the 10th and 90th percentiles of the model's errors on validation folds from the
+                            training years (α = 0.10 and 0.90). Nominally 80% of actual values fall inside; the line above
+                            shows how often they really did in 2023.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- CARD 2: Current conditions (Open-Meteo) -->
+                <section class="glass-card conditions-card">
+                    <div class="card-header">
+                        <span class="card-tag">CURRENT CONDITIONS (OPEN-METEO)</span>
+                        <span class="card-date" id="completed-date-display">Last completed day D: --</span>
+                    </div>
+
+                    <div class="conditions-grid">
+                        <div class="cond-item">
+                            <div class="cond-icon">🌡️</div>
+                            <div class="cond-info">
+                                <span class="cond-label">Temperature</span>
+                                <span class="cond-val" id="cond-temp">--.- °C</span>
+                            </div>
+                        </div>
+                        <div class="cond-item">
+                            <div class="cond-icon">💧</div>
+                            <div class="cond-info">
+                                <span class="cond-label">Humidity</span>
+                                <span class="cond-val" id="cond-humidity">-- %</span>
+                            </div>
+                        </div>
+                        <div class="cond-item">
+                            <div class="cond-icon">💨</div>
+                            <div class="cond-info">
+                                <span class="cond-label">Wind Speed</span>
+                                <span class="cond-val" id="cond-wind">--.- km/h</span>
+                            </div>
+                        </div>
+                        <div class="cond-item">
+                            <div class="cond-icon">🌫️</div>
+                            <div class="cond-info">
+                                <span class="cond-label">Dew Point</span>
+                                <span class="cond-val" id="cond-dewpoint">--.- °C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="conditions-note" id="conditions-note">
+                        These are current readings for information only. The model uses only fully completed days up to D
+                        (yesterday in India); today's partial readings are never model inputs.
+                    </div>
+                </section>
+
+                <!-- CARD 3: Model vs Baselines Comparison -->
+                <section class="glass-card comparison-card full-width">
+                    <div class="card-header">
+                        <span class="card-tag">MODEL VS BASELINES (HELD-OUT TEST YEAR 2023)</span>
+                        <span class="card-subtitle">Lower MAE / RMSE is better. 2023 was never used for training or model selection.</span>
+                    </div>
+                    <p class="benchmark-summary" id="benchmark-summary"></p>
+
+                    <div class="table-responsive">
+                        <table class="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Model / Method</th>
+                                    <th scope="col">Prediction for target date</th>
+                                    <th scope="col">How it works</th>
+                                    <th scope="col">Test MAE</th>
+                                    <th scope="col">Test RMSE</th>
+                                    <th scope="col">vs. persistence (MAE)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="highlight-row">
+                                    <td>
+                                        <div class="model-badge ens">
+                                            <strong>Ensemble (main model)</strong>
+                                        </div>
+                                    </td>
+                                    <td><strong id="table-ens-pred" class="accent-text">--.- °C</strong></td>
+                                    <td>Weighted blend of the three models below; weights learned on validation folds</td>
+                                    <td id="table-ens-mae">--.- °C</td>
+                                    <td id="table-ens-rmse">--.- °C</td>
+                                    <td id="table-ens-outcome">--</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Ridge regression (linear)</strong></td>
+                                    <td><span id="table-lr-pred">--.- °C</span></td>
+                                    <td>Linear model with an L2 penalty (α = 10)</td>
+                                    <td id="table-lr-mae">--.- °C</td>
+                                    <td id="table-lr-rmse">--.- °C</td>
+                                    <td id="table-lr-outcome">--</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="model-badge rf">
+                                            <strong>Random Forest</strong>
+                                        </div>
+                                    </td>
+                                    <td><span id="table-rf-pred">--.- °C</span></td>
+                                    <td>Average of many decision trees, tuned with TimeSeriesSplit</td>
+                                    <td id="table-rf-mae">--.- °C</td>
+                                    <td id="table-rf-rmse">--.- °C</td>
+                                    <td id="table-rf-outcome">--</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div class="model-badge lgb">
+                                            <strong>LightGBM</strong>
+                                        </div>
+                                    </td>
+                                    <td><span id="table-lgb-pred">--.- °C</span></td>
+                                    <td>Gradient-boosted decision trees, tuned with TimeSeriesSplit</td>
+                                    <td id="table-lgb-mae">--.- °C</td>
+                                    <td id="table-lgb-rmse">--.- °C</td>
+                                    <td id="table-lgb-outcome">--</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Persistence baseline</strong></td>
+                                    <td id="table-pers-pred">--.- °C</td>
+                                    <td>Predicts the max temperature of day D (two days earlier)</td>
+                                    <td id="table-pers-mae">--.- °C</td>
+                                    <td id="table-pers-rmse">--.- °C</td>
+                                    <td><span class="status-pill baseline">Baseline 1</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Climatology baseline</strong></td>
+                                    <td id="table-clim-pred">--.- °C</td>
+                                    <td>Average max temperature for the target day-of-year, training years only</td>
+                                    <td id="table-clim-mae">--.- °C</td>
+                                    <td id="table-clim-rmse">--.- °C</td>
+                                    <td><span class="status-pill baseline">Baseline 2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- CARD 4: Model inputs (real observations used) -->
+                <section class="glass-card full-width">
+                    <div class="card-header">
+                        <span class="card-tag">MODEL INPUTS</span>
+                        <span class="card-subtitle">The 7 completed days (D-6 to D) used to build the features</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="benchmark-table inputs-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Date</th>
+                                    <th scope="col">Max temp (°C)</th>
+                                    <th scope="col">Mean humidity (%)</th>
+                                    <th scope="col">Max wind (km/h)</th>
+                                    <th scope="col">Rain (mm)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="input-window-body">
+                                <tr><td colspan="5">--</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- CARD 5: TreeSHAP explanation of the LightGBM component -->
+                <section class="glass-card full-width">
+                    <div class="card-header">
+                        <span class="card-tag">FEATURE CONTRIBUTIONS (TreeSHAP, LIGHTGBM COMPONENT)</span>
+                        <span class="card-subtitle" id="shap-weight-note">--</span>
+                    </div>
+                    <p class="card-note">
+                        How each input pushes the LightGBM component's prediction above (<span class="warming-text">warming</span>)
+                        or below (<span class="cooling-text">cooling</span>) its average. This explains only the LightGBM part of the
+                        blend, not the full ensemble prediction.
+                    </p>
+                    <div class="shap-container" id="shap-drivers-container">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </section>
+
+                <!-- CARD 6: Official NWP Reference Card -->
+                <section class="glass-card reference-card full-width">
+                    <div class="reference-badge">REFERENCE ONLY</div>
+                    <div class="reference-content">
+                        <div class="ref-left">
+                            <span class="ref-label" id="official-label">Open-Meteo numerical weather forecast for the target date</span>
+                            <div class="ref-temp-display">
+                                <span id="official-temp-val" class="ref-temp">--.-</span>
+                                <span class="ref-unit" id="official-unit">°C</span>
+                            </div>
+                        </div>
+                        <div class="ref-right">
+                            <p>
+                                <strong>Why this is a reference, not a competitor:</strong>
+                                Numerical weather prediction models simulate the atmosphere's physics using observations from
+                                many sources. Our model only uses one grid point's recent daily values, so the two are not a fair
+                                like-for-like comparison. The official value is shown for context only.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Seasonal Breakdown Section -->
+                <section class="glass-card full-width">
+                    <div class="card-header">
+                        <span class="card-tag">ERRORS BY SEASON (TEST YEAR 2023)</span>
+                        <span class="card-subtitle">Mean absolute error (°C) by Indian Meteorological Department season of the target date</span>
+                    </div>
+                    <div class="seasons-grid" id="seasons-metrics-grid">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </section>
+
+            </div>
+        </main>
+
+        <!-- TAB 2: Interactive AI What-If Simulator -->
+        <section id="simulator-tab" class="tab-pane" role="tabpanel" aria-labelledby="btn-simulator">
+            <div class="glass-card">
+                <div class="card-header">
+                    <span class="card-tag">WHAT-IF SIMULATOR (ILLUSTRATIVE, NOT A FORECAST)</span>
+                    <span class="card-subtitle">Explore how the trained models respond to synthetic inputs</span>
+                </div>
+                <p class="card-note sim-intro">
+                    The sliders generate a synthetic 7-day history (a fixed pattern built from the chosen temperature and
+                    daily change, with no rain), which is fed to the trained models. Real weather rarely follows such a
+                    pattern, so treat the result as a sensitivity check, not a prediction.
+                </p>
+
+                <div class="simulator-layout">
+                    <!-- Controls Column -->
+                    <div class="sim-controls">
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-header">
+                                <label for="sim-temp-slider">Max temperature on day D</label>
+                                <span class="sim-slider-val" id="sim-temp-val">30.0 °C</span>
+                            </div>
+                            <input type="range" id="sim-temp-slider" class="sim-slider" min="15.0" max="46.0" step="0.5" value="30.0">
+                        </div>
+
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-header">
+                                <label for="sim-rh-slider">Mean relative humidity</label>
+                                <span class="sim-slider-val" id="sim-rh-val">55 %</span>
+                            </div>
+                            <input type="range" id="sim-rh-slider" class="sim-slider" min="10" max="100" step="1" value="55">
+                        </div>
+
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-header">
+                                <label for="sim-wind-slider">Max wind speed</label>
+                                <span class="sim-slider-val" id="sim-wind-val">12.0 km/h</span>
+                            </div>
+                            <input type="range" id="sim-wind-slider" class="sim-slider" min="0" max="45" step="1" value="12">
+                        </div>
+
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-header">
+                                <label for="sim-momentum-slider">Change from previous day (ΔT)</label>
+                                <span class="sim-slider-val" id="sim-momentum-val">+0.5 °C/day</span>
+                            </div>
+                            <input type="range" id="sim-momentum-slider" class="sim-slider" min="-5.0" max="5.0" step="0.5" value="0.5">
+                        </div>
+                    </div>
+
+                    <!-- Results Column -->
+                    <div class="sim-results">
+                        <div class="sim-hero-box">
+                            <div class="sim-hero-label">Ensemble output for these synthetic inputs</div>
+                            <div class="sim-hero-temp">
+                                <span id="sim-result-temp">--.-</span><span style="font-size: 1.5rem; color: var(--accent-cyan);">°C</span>
+                            </div>
+                            <div class="card-note">
+                                Approx. dew point feature: <strong id="sim-result-dewpoint" class="strong-white">--.- °C</strong>
+                            </div>
+
+                            <div class="sim-breakdown-row">
+                                <div class="sim-sub-item">
+                                    <div class="sim-sub-title">LightGBM</div>
+                                    <div class="sim-sub-val" id="sim-result-lgb">--.- °C</div>
+                                </div>
+                                <div class="sim-sub-item">
+                                    <div class="sim-sub-title">Random Forest</div>
+                                    <div class="sim-sub-val" id="sim-result-rf">--.- °C</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card" style="margin-bottom: 0; padding: 1.2rem;">
+                            <h4 class="sim-driver-title">Largest LightGBM feature contribution (TreeSHAP)</h4>
+                            <p id="sim-top-driver-text" class="card-note" aria-live="polite">
+                                Move any slider to recalculate.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: Exploratory Data Analysis (EDA) -->
+        <section id="eda-tab" class="tab-pane" role="tabpanel" aria-labelledby="btn-eda">
+            <div class="eda-container">
+                <div class="eda-header-card glass-card">
+                    <h2>Exploratory Data Analysis</h2>
+                    <p>Daily data for 2019-01-01 to 2023-12-31 (1826 days per city, no missing dates, values or duplicates) from the Open-Meteo Historical Weather API. Select a figure to enlarge it.</p>
+                </div>
+
+                <div class="eda-gallery">
+                    <div class="eda-card glass-card">
+                        <h3>1. Distributions</h3>
+                        <p class="eda-desc">Smoothed distributions (kernel density) of daily max temperature, mean humidity, max wind speed and rain (rainy days only). Delhi has by far the widest temperature range.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 1">
+                            <img src="/figures/1_distributions.png" alt="Distributions of max temperature, humidity, wind speed and rain for the three cities" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>2. Seasonal temperature pattern</h3>
+                        <p class="eda-desc">Max temperature by IMD season (Winter Dec–Feb, Pre-monsoon Mar–May, Monsoon Jun–Sep, Post-monsoon Oct–Nov). Delhi varies strongly between seasons; coastal Mumbai varies much less.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 2">
+                            <img src="/figures/2_seasonal_trends.png" alt="Box plots of max temperature by season for each city" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>3. Same-day correlations</h3>
+                        <p class="eda-desc">Pearson correlations between same-day variables. Humidity is clearly negatively correlated with max temperature in all three cities (−0.60 to −0.77). Rain is negatively correlated in Bengaluru (−0.32) and Mumbai (−0.41) but not in Delhi (−0.03). Correlation does not imply causation.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 3">
+                            <img src="/figures/3_correlation_heatmaps.png" alt="Correlation heatmaps for each city" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>4. Raw autocorrelation</h3>
+                        <p class="eda-desc">Correlation of max temperature with itself k days earlier. It stays high for weeks (e.g. Delhi 0.89 at lag 7, 0.70 at lag 30) mainly because of the seasonal cycle, so on its own it does not determine the lag window. See figure 6.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 4">
+                            <img src="/figures/4_autocorrelation.png" alt="Autocorrelation of max temperature up to lag 30" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>5. City comparison</h3>
+                        <p class="eda-desc">Mean max temperature, range (highest − lowest daily max) and average number of days per year with max ≥ 35 °C.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 5">
+                            <img src="/figures/5_city_comparison.png" alt="Bar charts comparing mean, range and hot days across cities" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>6. Day-to-day memory (lag window)</h3>
+                        <p class="eda-desc">Left: autocorrelation after removing the day-of-year average; it falls to about 0.24–0.38 by lag 7. Right: partial autocorrelation, dominated by lag 1 with small values up to about a week. A 7-day window is a reasonable choice, not a sharp cutoff.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 6">
+                            <img src="/figures/6_memory_diagnostics.png" alt="Anomaly autocorrelation and partial autocorrelation of max temperature" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="eda-card glass-card">
+                        <h3>7. Ensemble residuals on the 2023 test year</h3>
+                        <p class="eda-desc">Residual = actual − ensemble prediction for the selected city, with the 10th/90th-percentile offsets (orange) that define the 80% interval.</p>
+                        <div class="img-wrapper" role="button" tabindex="0" aria-label="Enlarge figure 7">
+                            <img id="city-residual-img" src="/figures/residuals_bengaluru.png" alt="Ensemble residual plots for the selected city" loading="lazy">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Image Lightbox Modal for Full View Inspection -->
+        <div id="image-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-container">
+                <button id="modal-close" class="modal-close-btn" title="Close (Esc)" aria-label="Close">&times;</button>
+                <div class="modal-header">
+                    <h3 id="modal-title">Graph Inspection</h3>
+                    <p id="modal-desc" class="modal-subtitle"></p>
+                </div>
+                <div class="modal-body">
+                    <img id="modal-img" src="" alt="Enlarged Plot" />
+                </div>
+                <div class="modal-footer">
+                    <span class="modal-tip">Click outside the image or press Esc to close</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Applied Data Science and Artificial Intelligence Project • Built with FastAPI, scikit-learn & Vanilla CSS3</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
