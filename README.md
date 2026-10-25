@@ -1,214 +1,196 @@
 # ML Weather Predictor and Dashboard
 
-**Applied Data Science and Artificial Intelligence — course project**
+**Applied Data Science and Artificial Intelligence (A.I.D.S.) — course project**
 
-A web application that predicts **tomorrow's maximum temperature** for **Bengaluru, Delhi and Mumbai** from recent
-daily weather, compares the prediction with two simple baselines, shows an 80% prediction interval whose real
-coverage has been measured, and displays the official numerical weather forecast separately as a reference.
+A web application that predicts **tomorrow's maximum temperature** for **Bengaluru, Delhi and Mumbai** from the last
+seven completed days of weather data. It compares every prediction with two simple baselines, attaches an 80%
+prediction interval whose real coverage was measured on a held-out year, and shows the official Open-Meteo forecast
+separately as a reference.
 
-> **Deployment status: pending.** The app runs locally and has been verified end to end on a laptop
-> (see [Testing](#13-testing) and [Deployment](#16-deployment)). There is no public URL yet.
+- **Website:** <https://ml-weather-predictor-ae4j.onrender.com/>
+- **Repository:** <https://github.com/bhavitha1917/ml-weather-predictor>
+- **Detailed technical guide and viva preparation:** [PROJECT_DEEP_DIVE.md](PROJECT_DEEP_DIVE.md)
+- **Audit of the current state (findings, evidence, open issues):** [PROJECT_AUDIT_REPORT.md](PROJECT_AUDIT_REPORT.md)
+
+> **Current live-data status (last checked 26 Oct 2026, 04:00 IST):** the website is deployed and healthy (all models
+> load), but the weather provider is rejecting the server's requests with **HTTP 429 – daily API request limit
+> exceeded**. Until the limit resets, `/predict` returns a **saved demo snapshot** of an earlier real run
+> (`data_source: "demo_snapshot"`, `fallback_reason: "rate_limited"`), and the dashboard shows a visible banner saying
+> so. The snapshot is **not** today's forecast. See [Live data, cache and rate limits](#13-live-data-cache-and-rate-limits).
 
 ![Dashboard (desktop)](docs/screenshots/dashboard_desktop.png)
+
+*Screenshot captured on 25 Oct 2026 from the local app with live data, before deployment (it still shows an older
+"(v3)" label in the logo).*
 
 ---
 
 ## Contents
-1. [Problem and objectives](#1-problem-and-objectives)
-2. [Features](#2-features)
-3. [Technologies](#3-technologies)
-4. [Project structure](#4-project-structure)
+1. [Motivation and problem statement](#1-motivation-and-problem-statement)
+2. [Scope and objectives](#2-scope-and-objectives)
+3. [Implemented features](#3-implemented-features)
+4. [Architecture](#4-architecture)
 5. [Data](#5-data)
-6. [Exploratory data analysis](#6-exploratory-data-analysis)
-7. [Forecast target and features](#7-forecast-target-and-features)
-8. [Models, training and validation](#8-models-training-and-validation)
-9. [Results](#9-results)
-10. [Prediction interval](#10-prediction-interval)
-11. [Architecture and API](#11-architecture-and-api)
-12. [Installation and running locally](#12-installation-and-running-locally)
-13. [Testing](#13-testing)
-14. [Reproducing the analysis](#14-reproducing-the-analysis)
-15. [Limitations](#15-limitations)
-16. [Deployment](#16-deployment)
-17. [Future improvements](#17-future-improvements)
+6. [ML pipeline: target, features, models and baselines](#6-ml-pipeline-target-features-models-and-baselines)
+7. [Results](#7-results)
+8. [Prediction interval](#8-prediction-interval)
+9. [Exploratory data analysis](#9-exploratory-data-analysis)
+10. [Technology stack](#10-technology-stack)
+11. [Repository structure](#11-repository-structure)
+12. [Setup, running and API](#12-setup-running-and-api)
+13. [Live data, cache and rate limits](#13-live-data-cache-and-rate-limits)
+14. [Testing](#14-testing)
+15. [Deployment](#15-deployment)
+16. [Limitations](#16-limitations)
+17. [Future work](#17-future-work)
+18. [Data sources and attribution](#18-data-sources-and-attribution)
+19. [Viva and demo guide](#19-viva-and-demo-guide)
 
 ---
 
-## 1. Problem and objectives
+## 1. Motivation and problem statement
 
-Predict the maximum temperature for tomorrow in three Indian cities using only recent daily observations, and judge
-honestly whether machine learning adds value over trivial forecasts.
+Daily maximum temperature matters for heat-stress planning, energy demand and everyday decisions. Numerical weather
+prediction (NWP) models already forecast it well, so this project asks a narrower, testable question:
 
-Objectives (from the course project blueprint, which is not included in this repository):
-- Collect five years of daily weather data and analyse it (EDA).
-- Build features without data leakage, with one feature function shared by training and the live app.
-- Train one model per city, validate with `TimeSeriesSplit`, and test once on a held-out final year.
-- Compare against a **persistence** and a **climatology** baseline with MAE and RMSE, per city and per season.
-- Provide an 80% prediction interval and check its coverage on the test year.
-- Serve live predictions through a FastAPI backend and a dashboard.
+> Using only the last seven days of four daily variables at one location, can machine learning predict tomorrow's
+> maximum temperature better than trivial forecasts, and how honestly can it state its own uncertainty?
 
-## 2. Features
+The answer is reported as measured, including where the model does **not** beat the simplest baseline.
 
-- Live prediction for each city, built from the last 7 completed days fetched from Open-Meteo.
-- **80% prediction interval** with its measured test-year coverage shown next to it.
-- **Model vs. baselines table** with test-year MAE/RMSE; whether each model beats persistence is computed from the
-  metrics, not hard-coded.
-- **Model inputs table**: the 7 real observed days the prediction used.
-- Current conditions and the official Open-Meteo forecast for the target date, shown as **reference only**.
-  A missing value is shown as unavailable, never invented.
-- TreeSHAP feature contributions of the LightGBM component (labelled as such, with its blend weight).
-- Errors by season, an EDA tab with 7 figures, and an **illustrative** what-if simulator (clearly marked as not a forecast).
-- Loading, error and **demo-snapshot** states: if live weather data cannot be used, the app shows a saved snapshot of an
-  earlier real run with its original dates and a visible banner. It never presents it as today's forecast.
-- Optional Streamlit interface (`streamlit_app.py`) that reuses the same backend pipeline.
+## 2. Scope and objectives
 
-| Mobile | Demo snapshot banner |
+**In scope**
+- Three cities (Bengaluru, Delhi, Mumbai), one target variable (daily maximum temperature at 2 m), one horizon.
+- Five years of daily data (2019–2023): four years for training and validation, 2023 held out as the test year.
+- Leakage-free features from one function shared by training and the live app.
+- Comparison against a **persistence** and a **climatology** baseline, per city and per season, with MAE and RMSE.
+- An 80% prediction interval with its coverage measured on the test year.
+- A FastAPI backend and a dashboard, deployed as one web service.
+
+**Out of scope (non-goals)**
+- Replacing official forecasts. The Open-Meteo forecast is shown only as a reference, never as the model's output.
+- Multi-day forecasts, other variables (rain, minimum temperature), or other cities.
+- Automatic retraining or monitoring in production.
+
+## 3. Implemented features
+
+| Feature | Status |
 |---|---|
-| <img src="docs/screenshots/dashboard_mobile.png" width="230"> | <img src="docs/screenshots/demo_snapshot.png" width="520"> |
+| Tomorrow's max-temperature prediction per city from the last 7 completed days (live Open-Meteo data) | Implemented. Verified locally on 26 Oct 2026; **currently unavailable on the deployed site because of the provider's HTTP 429 limit** |
+| Ensemble of LightGBM, Random Forest and Ridge with weights learned on validation folds | Implemented and verified |
+| Persistence and climatology baselines, shown next to the model, with test-year MAE/RMSE | Implemented and verified |
+| 80% prediction interval with its measured test-year coverage displayed next to it | Implemented and verified |
+| Table of the 7 real input days used for the prediction | Implemented and verified |
+| Current conditions and the official forecast for the target date, shown as reference only (missing values stay empty) | Implemented and verified |
+| TreeSHAP contributions of the **LightGBM component only** (labelled with its ensemble weight) | Implemented; explains only a small part of the blend (see [Limitations](#16-limitations)) |
+| Errors by season, EDA tab with 7 figures | Implemented |
+| What-if simulator (synthetic inputs, clearly marked as not a forecast) | Implemented; illustrative only |
+| Validated 30-minute in-memory cache, per-city request locks, HTTP 429 cooldown | Implemented and tested offline; deployed |
+| Labelled demo-snapshot fallback when live data cannot be used | Implemented and verified on the deployed site |
+| Optional Streamlit interface reusing the same backend code | Implemented; not deployed |
 
-Screenshots were captured on 25 Oct 2026 from the local app (live Open-Meteo data, and the demo state forced by
-simulating a weather-service failure).
+## 4. Architecture
 
-## 3. Technologies
-
-| Purpose | Tools |
-|---|---|
-| Data and analysis | pandas, NumPy, Matplotlib, seaborn |
-| Machine learning | scikit-learn (Random Forest, Ridge), LightGBM, joblib |
-| Backend | FastAPI, Uvicorn, requests |
-| Frontend | HTML, CSS and plain JavaScript (no framework), Inter font |
-| Alternative UI | Streamlit |
-| Tests and notebook | pytest, httpx (FastAPI test client), nbclient/ipykernel |
-| Data source | Open-Meteo Historical Weather API (training) and Forecast API (live), free, no API key |
-
-Python 3.11.9 was used. Library versions are pinned (see [Installation](#12-installation-and-running-locally)).
-
-## 4. Project structure
-
+```mermaid
+flowchart LR
+    subgraph OFF["Offline pipeline (run locally)"]
+        A["Open-Meteo Historical Weather API"] --> B["src/data_fetch.py"]
+        B --> C["data/*.csv"]
+        C --> D["src/eda.py"]
+        D --> D2["figures/"]
+        C --> E["src/train.py"]
+        E --> F["models/*.joblib, metrics.json, climatology JSON"]
+        F --> G["src/evaluate.py"]
+        G --> G2["models/evaluation_report.json"]
+    end
+    subgraph WEB["Render web service: backend/app.py (FastAPI)"]
+        H["Browser: frontend/index.html + app.js"] -->|"GET /predict, /metrics, /health, /simulate"| I["API routes"]
+        I --> J["LiveWeatherCache (backend/live_data.py)"]
+        J -->|"cache miss and no cooldown"| K["Open-Meteo Forecast API"]
+        I --> L["make_features() + saved models"]
+        I -.->|"live data unusable"| M["backend/sample_responses.json (demo snapshot)"]
+    end
+    F --> L
+    G2 --> I
 ```
-weather_predictor_project/
-├── backend/
-│   ├── app.py                  # FastAPI app: /health /cities /predict /metrics /simulate, serves the frontend
-│   ├── live_data.py            # Indian-time forecast dates, Open-Meteo fetch, validation of the 7-day input window
-│   └── sample_responses.json   # Demo snapshots captured from a real run (used only if live data fails)
-├── data/                       # bengaluru.csv, delhi.csv, mumbai.csv (2019-01-01 .. 2023-12-31, 1826 rows each)
-├── docs/screenshots/           # Screenshots used in this README
-├── figures/                    # EDA figures 1-6, residual plots per city, eda_summary.json
-├── frontend/                   # index.html, style.css, app.js (dashboard)
-├── models/
-│   ├── {city}_ensemble|rf|lgb|lr.joblib   # Trained models used by the app
-│   ├── {city}_q10|q90.joblib   # LightGBM quantile models (trained, evaluated, NOT used by the app)
-│   ├── {city}_climatology.json # Day-of-year means from training years only
-│   ├── metrics.json            # Test-year metrics and interval offsets written by src/train.py
-│   └── evaluation_report.json  # Verified re-evaluation written by src/evaluate.py
-├── notebooks/weather_prediction_pipeline.ipynb   # Executed analysis notebook
-├── scripts/
-│   ├── create_notebook.py      # Builds and executes the notebook
-│   └── capture_demo_snapshots.py  # Captures real responses for the demo fallback
-├── src/
-│   ├── data_fetch.py           # Downloads the historical data
-│   ├── eda.py                  # EDA figures and diagnostics
-│   ├── features.py             # make_features(): shared by training and the live app
-│   ├── train.py                # Tuning, training, interval offsets, metrics, residual plots
-│   ├── ensemble.py             # Weighted blend of LightGBM, Random Forest and Ridge
-│   ├── intervals.py            # The 80% interval and coverage calculation
-│   └── evaluate.py             # Reproducible re-evaluation of the saved models
-├── tests/                      # pytest suite (offline; network calls are mocked)
-├── main.py                     # Local entry point (starts the server, opens the browser)
-├── streamlit_app.py            # Optional Streamlit UI
-├── requirements.txt            # Runtime dependencies (what a server needs)
-├── requirements-dev.txt        # + analysis, tests, notebook, Streamlit
-├── render.yaml                 # Render Blueprint for the single web service
-└── .python-version             # 3.11.9
-```
+
+One FastAPI process serves the dashboard (`/`, `/static/*`), the figures (`/figures/*`) and the JSON API from the same
+origin, so no CORS configuration is needed.
 
 ## 5. Data
 
-| Item | Value |
+| Item | Value (verified from `data/*.csv` and `src/data_fetch.py`) |
 |---|---|
-| Source | Open-Meteo Historical Weather API (`archive-api.open-meteo.com`) via `src/data_fetch.py` |
-| Cities (lat, lon) | Bengaluru (12.9716, 77.5946), Delhi (28.6139, 77.2090), Mumbai (19.0760, 72.8777) |
+| Source | Open-Meteo Historical Weather API (`archive-api.open-meteo.com`), downloaded by `src/data_fetch.py` |
+| Cities (lat, lon) | Bengaluru (12.9716, 77.5946), Delhi (28.6139, 77.2090), Mumbai (19.0760, 72.8777): one grid point each |
 | Period | 2019-01-01 to 2023-12-31, daily, local dates (`timezone=Asia/Kolkata`) |
-| Variables | `temperature_2m_max` (°C), `relative_humidity_2m_mean` (%), `wind_speed_10m_max` (km/h), `precipitation_sum` (mm) |
-| Size | 1826 rows per city |
+| Columns | `date`, `temperature_2m_max` (°C), `relative_humidity_2m_mean` (%), `wind_speed_10m_max` (km/h), `precipitation_sum` (mm), `city` |
+| Size | 1826 rows per city; no missing dates, no duplicate dates, no missing values (so no imputation) |
 
-**Cleaning and validation.** Every city has 1826 consecutive dates with **no missing dates, no duplicate dates and no
-missing values**, so no imputation was needed. `make_features()` additionally refuses data with gaps or duplicate dates,
-because lag features are row shifts and a gap would silently misalign them.
+**Training vs. live data.** Training data come from the historical (reanalysis-based) archive; live inputs come from
+the Open-Meteo **Forecast** API. A spot check for 14–19 Oct 2026 found daily maximum temperatures differ by at most
+0.1–0.3 °C between the two, with identical humidity, wind and rain. Six days do not prove the sources match in general.
 
-**Live data.** The app uses the Open-Meteo **Forecast** API with `past_days=10`. Training data is reanalysis data
-while live inputs come from a forecast model. A spot check of 14–19 Oct 2026 found the two sources' daily maximum
-temperatures differ by at most 0.3 °C, with identical humidity.
+## 6. ML pipeline: target, features, models and baselines
 
-## 6. Exploratory data analysis
+**Target.** Let *D* be the last fully completed day in India (yesterday, IST). The target is the maximum temperature on
+**D + 2**, which is tomorrow when the app runs today. Today's partial day is never an input. All dates are computed in
+Indian Standard Time (UTC+05:30), never from the server clock.
 
-Figures are in `figures/` and shown in the dashboard's EDA tab; the notebook computes every number below.
-
-| Figure | What it shows |
-|---|---|
-| 1 Distributions | Delhi has by far the widest temperature range; Mumbai the narrowest. Rain is heavily skewed. |
-| 2 Seasons | Pre-monsoon (Mar–May) is the hottest season everywhere; Delhi varies most between seasons. |
-| 3 Correlations | Same-day Pearson correlation with max temperature: humidity −0.77 / −0.60 / −0.62 (Bengaluru / Delhi / Mumbai); rain −0.32 / **−0.03** / −0.41; wind −0.23 / +0.35 / −0.05. Correlation is not causation. |
-| 4 Raw autocorrelation | Stays high for weeks (Delhi 0.89 at lag 7, 0.70 at lag 30) because of the seasonal cycle, so it cannot choose a lag window by itself. |
-| 5 City comparison | Mean max temperature, range and hot days (≥ 35 °C) per year. |
-| 6 Day-to-day memory | After removing the day-of-year mean, autocorrelation falls from 0.75–0.84 (lag 1) to 0.24–0.38 (lag 7); partial autocorrelation is dominated by lag 1. A 7-day window is a reasonable choice, not a sharp cutoff. |
-
-## 7. Forecast target and features
-
-**Target.** Let *D* be the last fully completed day in India (yesterday). The target is the maximum temperature on
-**D + 2**, which is tomorrow when the app runs today. Today's partial day is never used, so live inputs match training
-inputs. All dates are computed in Indian time (UTC+05:30), not from the server clock.
-
-**Features** (`src/features.py`, 22 columns, built only from days up to *D*):
-- maximum temperature on D, D−1 … D−6, and its 7-day mean and standard deviation;
-- change from D−1 to D, and the change in that change;
-- mean humidity on D and D−1; an approximate dew point (max temperature − (100 − humidity)/5);
-- maximum wind speed on D; rain on D, D−1 and the 3-day total;
+**Features** (`src/features.py`, 22 columns, built only from days D−6 … D):
+- max temperature on D, D−1 … D−6; its 7-day mean and standard deviation;
+- day-to-day change (D − D−1) and the change in that change;
+- mean humidity on D and D−1; an approximate dew point, max temperature − (100 − humidity)/5;
+- max wind speed on D; rain on D, D−1 and the 3-day total;
 - sine and cosine of the target date's day-of-year, plus a second (semi-annual) harmonic.
 
-Three features (daily change, its change and the approximate dew point) are exact linear combinations of others, so
-the feature matrix has rank 19 of 22. Trees are unaffected. For a linear model it means ordinary least squares has no
-unique solution, which is why the linear model is Ridge regression.
+Three features are exact linear combinations of the temperature lags: the daily change, its change and the 7-day
+mean. So the training matrix has rank 19 of 22 in every city, and the dew-point feature is also redundant once an
+intercept is included. Tree models are unaffected. The linear model is Ridge regression, which handles collinearity
+through regularisation.
 
-**Baselines.** *Persistence*: the max temperature on D (two days before the target). *Climatology*: the average max
-temperature for the target's day-of-year over the training years only.
+**Pipeline.**
+1. `src/data_fetch.py` downloads the data to `data/{city}.csv`.
+2. `src/train.py`, per city:
+   - builds features with `make_features()` and computes the climatology from **training years only**;
+   - splits **by target date**: targets in 2019–2022 are training data (1453 rows), targets in 2023 the test set (365 rows);
+   - tunes Random Forest and LightGBM (3 settings each) by 5-fold `TimeSeriesSplit` MAE on the training years; Ridge
+     uses α = 10;
+   - learns non-negative ensemble weights from out-of-fold (OOF) validation predictions;
+   - computes the interval offsets (10th/90th percentiles of OOF ensemble errors);
+   - refits on all training years, evaluates once on 2023, and saves the models and metrics.
+3. `src/evaluate.py` re-evaluates the **saved** models and writes `models/evaluation_report.json`, which the API serves.
 
-**Leakage prevention.** Features for a date are identical whether or not later data exists (tested for every city).
-The climatology uses training years only, the split is chronological, and the live app validates that the 7 input days
-are exactly D−6 … D.
+**Models and baselines**
 
-## 8. Models, training and validation
+| Name | Role | Detail |
+|---|---|---|
+| Persistence | Baseline | Prediction = max temperature on D (two days before the target) |
+| Climatology | Baseline | Prediction = mean max temperature for the target's day-of-year over 2019–2022 |
+| Ridge regression | Component model | Linear model with L2 penalty, α = 10, unscaled features (file `{city}_lr.joblib`, key `linear_regression`) |
+| Random Forest | Component model | Bagged regression trees; best of 3 settings per city |
+| LightGBM | Component model | Gradient-boosted trees; best of 3 settings per city |
+| **Ensemble (served)** | Main model | Weighted sum of the three, weights ≥ 0 summing to 1, fitted on OOF predictions |
 
-- One set of models per city, data sorted by date.
-- **Split by target date:** targets in 2019–2022 are training data (1453 rows); targets in **2023** are the final test
-  set (365 rows), used once for the final evaluation.
-- **Validation:** 5-fold `TimeSeriesSplit` inside the training years (each fold trains on the past and validates on the
-  next block).
-- **Models:**
-  - Random Forest: 3 hyperparameter settings compared on validation MAE.
-  - LightGBM: 3 settings compared the same way.
-  - Ridge regression (α = 10).
-  - **Ensemble (main model):** a non-negative weighted blend of the three. The weights are fitted on out-of-fold
-    validation predictions (Bengaluru LGB/RF/Ridge = 0.01/0.27/0.71, Delhi 0.00/0.26/0.74, Mumbai 0.06/0.34/0.60).
-- Final models are refit on all training years and saved with joblib.
+Ensemble weights (LightGBM / Random Forest / Ridge): Bengaluru 0.014 / 0.274 / 0.712, Delhi 0.000 / 0.256 / 0.744,
+Mumbai 0.062 / 0.339 / 0.599. Ridge dominates the blend.
 
-**Deviation from the blueprint.** The blueprint names Linear Regression and Random Forest. The implementation uses
-Ridge regression as the linear model and adds LightGBM and the ensemble. On the training-years validation folds,
-unregularised linear regression was worse than Ridge in every city. Ridge is applied to unscaled features; scaling
-changed the validation MAE by at most 0.02 °C, so the saved models were not retrained.
+**Why the ensemble is the main model:** it has the lowest validation MAE (training years only) in every city:
 
-**Why the ensemble is the main model.** It has the lowest validation MAE in every city. This choice did not use 2023.
-
-| Validation MAE (°C, training years) | Ensemble | Ridge | Random Forest | LightGBM | Persistence |
+| Validation MAE (°C) | Ensemble | Ridge | Random Forest | LightGBM | Persistence |
 |---|---|---|---|---|---|
 | Bengaluru | **0.981** | 0.990 | 1.043 | 1.068 | 1.115 |
 | Delhi | **1.504** | 1.530 | 1.714 | 1.767 | 1.588 |
 | Mumbai | **1.095** | 1.129 | 1.129 | 1.155 | 1.200 |
 
-## 9. Results
+The blend weights were fitted on the same OOF predictions, so the ensemble's validation MAE is slightly optimistic.
+The size of that bias has not been measured.
 
-Test year 2023, 365 days per city. Lower is better. Recomputed from the saved models by `src/evaluate.py` and
-identical to `models/metrics.json`.
+## 7. Results
+
+Final test year **2023**, 365 days per city. Values from `models/metrics.json`, recomputed from the saved models by
+`src/evaluate.py` (maximum difference 0.0) and again independently during the audit.
 
 | MAE / RMSE (°C) | Ensemble | Ridge | Random Forest | LightGBM | Persistence | Climatology |
 |---|---|---|---|---|---|---|
@@ -216,228 +198,318 @@ identical to `models/metrics.json`.
 | Delhi | **1.502 / 1.994** | 1.517 / 2.009 | 1.567 / 2.091 | 1.561 / 2.044 | 1.616 / 2.188 | 2.616 / 3.287 |
 | Mumbai | 1.215 / 1.504 | 1.169 / **1.462** | 1.351 / 1.676 | 1.307 / 1.634 | **1.068** / 1.480 | 1.920 / 2.352 |
 
-**Interpretation**
-- The ensemble **beats climatology clearly in every city**.
-- **Against persistence the result is mixed:**
-  - Delhi: better on both MAE and RMSE.
-  - Bengaluru: better on RMSE (fewer large errors) but not on MAE.
-  - Mumbai: worse on both.
-- Ridge alone performs about as well as the ensemble. The Random Forest, the blueprint's main model, does not beat
-  persistence on MAE in Bengaluru or Mumbai.
-- Persistence is a strong baseline two days ahead because maximum temperature changes slowly. These results suggest the
-  four daily variables at one location add little information beyond the recent temperatures. A small or negative gain
-  is still a valid, honestly reported finding.
-- 2023 was about 0.9 °C (Bengaluru) and 1.1 °C (Mumbai) warmer than 2019–2022 on average, while Delhi's 2023 was not.
-  Accordingly, the ensemble under-predicted by +0.34 °C and +0.52 °C on average in Bengaluru and Mumbai, but only
-  +0.02 °C in Delhi.
+**What the results show**
+- The ensemble beats **climatology** clearly in every city.
+- Against **persistence** the result is mixed:
+  - **Delhi:** better on both MAE and RMSE.
+  - **Bengaluru:** better on RMSE but slightly worse on MAE.
+  - **Mumbai:** worse on both.
+- On the test year, persistence has the lowest MAE of all methods in Bengaluru and Mumbai.
+- Two days ahead, maximum temperature changes slowly, so persistence is a strong baseline. Four daily variables at one
+  grid point add little beyond the recent temperatures.
+- 2023 was warmer than 2019–2022 by 0.90 °C (Bengaluru) and 1.12 °C (Mumbai), while Delhi was unchanged (−0.01 °C).
+  The ensemble under-predicted on average by 0.34 °C, 0.02 °C and 0.52 °C (Bengaluru, Delhi, Mumbai).
 
-**Per season** (ensemble MAE in °C, with persistence in brackets; 61–122 days each):
+Per-season results, residual plots and their interpretation are in [PROJECT_DEEP_DIVE.md](PROJECT_DEEP_DIVE.md#chapter-8-evaluation-and-interpretation).
 
-| | Winter | Pre-monsoon | Monsoon | Post-monsoon |
+## 8. Prediction interval
+
+The method is in `src/intervals.py`. For a prediction ŷ the interval is **[ŷ + p10, ŷ + p90]**, rounded to 0.1 °C:
+p10 and p90 are the 10th and 90th percentiles of the ensemble's out-of-fold errors (actual − predicted) on the
+training years. Nominal coverage is 80%; 2023 was not used to choose the method.
+
+| City | p10 / p90 (°C) | Coverage of displayed (rounded) bounds | Coverage with unrounded bounds | Approx. 95% range* |
 |---|---|---|---|---|
-| Bengaluru | 0.80 (0.83) | 1.16 (1.29) | 1.10 (0.98) | 1.02 (0.92) |
-| Delhi | 1.44 (1.61) | 2.07 (2.15) | 1.39 (1.51) | 0.96 (1.02) |
-| Mumbai | 1.55 (1.58) | 1.28 (1.01) | 0.83 (0.81) | 1.40 (0.92) |
+| Bengaluru | −1.86 / +1.21 | **72.3%** | 69.6% | 67.7–76.9% |
+| Delhi | −2.46 / +2.18 | **77.5%** | 77.3% | 73.3–81.8% |
+| Mumbai | −1.52 / +2.03 | **81.1%** | 80.0% | 77.1–85.1% |
 
-Delhi's pre-monsoon is hardest to predict. Residual plots: `figures/residuals_{city}.png`.
+\*Normal approximation assuming independent days; daily errors are autocorrelated, so the true uncertainty is wider.
 
-## 10. Prediction interval
+- **The 80% target is not achieved in Bengaluru.** Coverage is 72.3% for the displayed bounds and 69.6% for unrounded
+  bounds, mainly because 2023 was warmer than the training years.
+- **Delhi is slightly below 80%** and Mumbai about at it.
+- **Seasonal coverage varies widely**, from 63.0% (Delhi, pre-monsoon) to 95.9% (Mumbai, monsoon).
+- **Why rounding matters:** observations are recorded to 0.1 °C, so an actual value equal to a rounded bound counts as
+  covered. That adds up to 2.7 percentage points.
+- **Quantile models are not used.** `src/train.py` also trains LightGBM quantile models, but their test coverage was
+  66.8 / 75.3 / 60.0%.
 
-**Method** (`src/intervals.py`):
-1. Collect the ensemble's out-of-fold errors (actual − predicted) on the training-years validation folds.
-2. Take their 10th and 90th percentiles, p10 and p90.
-3. For a new prediction ŷ, the interval is **[ŷ + p10, ŷ + p90]**, rounded to 0.1 °C.
+## 9. Exploratory data analysis
 
-Nominally, 80% of actual values should fall inside. The test year was not used to choose this method.
+The figures are in `figures/` and in the dashboard's EDA tab. The numbers below were recomputed from `data/*.csv`
+during the audit.
 
-**Measured coverage** on the 2023 test year, for exactly the interval the app shows:
-
-| City | p10 / p90 (°C) | Coverage | Approx. 95% range* | By season (Winter / Pre-monsoon / Monsoon / Post-monsoon) |
-|---|---|---|---|---|
-| Bengaluru | −1.86 / +1.21 | **72.3%** | 67.7–76.9% | 82.2 / 69.6 / 70.5 / 65.6% |
-| Delhi | −2.46 / +2.18 | **77.5%** | 73.3–81.8% | 77.8 / 63.0 / 81.1 / 91.8% |
-| Mumbai | −1.52 / +2.03 | **81.1%** | 77.1–85.1% | 70.0 / 72.8 / 95.9 / 80.3% |
-
-\*Normal approximation assuming independent days. Daily errors are autocorrelated, so the true uncertainty is wider.
-
-**Notes**
-- Delhi and Mumbai are close to 80%. **Bengaluru is clearly below 80%**, mainly because of the warmer-2023 bias above:
-  the interval assumes future errors resemble past errors.
-- **Rounding matters here.** The coverage above is for the bounds as displayed: rounded to 0.1 °C and inclusive.
-  Observations are also recorded to 0.1 °C, so an actual value that equals a rounded bound counts as covered. With
-  unrounded bounds (the same p10/p90), coverage is **69.6 / 77.3 / 80.0%**: 2.7 points lower for Bengaluru,
-  0.2 for Delhi and 1.1 for Mumbai. `src/train.py` printed 69.6 / 77.3 / 79.7% using p10/p90 before they were rounded
-  to two decimals. The Bengaluru gap is material, and both figures are below the nominal 80%.
-- `src/train.py` also trains LightGBM quantile models (α = 0.1/0.9). Their test coverage was 66.8 / 75.3 / 60.0%, so
-  **they are not used by the app**. (An earlier version of the app displayed them.)
-
-## 11. Architecture and API
-
-```
-Offline:  Open-Meteo Archive API -> data/*.csv -> src/eda.py (figures)
-                                             -> src/train.py (models/*.joblib, metrics.json)
-                                             -> src/evaluate.py (evaluation_report.json)
-Online:   browser -> FastAPI (backend/app.py) -> Open-Meteo Forecast API (past 10 days + forecast)
-                     -> validate days D-6..D -> make_features() -> saved models -> JSON -> dashboard
-```
-
-The same FastAPI app serves the dashboard (`/`, `/static/*`), the figures (`/figures/*`) and the API, so the
-frontend calls the API on the same origin. Interactive documentation is at `/docs`.
-
-| Endpoint | Description |
+| Figure | Finding |
 |---|---|
-| `GET /health` | `200` with loaded cities when all model files loaded; `503` with the loading errors otherwise. Also used to wake a sleeping server. |
-| `GET /cities` | `["Bengaluru", "Delhi", "Mumbai"]` |
-| `GET /predict?city=Delhi` | Live prediction (details below). `400` for an unknown city; `503` if models are missing or if live data fails and no demo snapshot exists; `500` for internal errors (details only in the server log). |
-| `GET /metrics?city=Delhi` | Saved test-year metrics (`overall`, `by_season`, `interval_80`, …) plus the verified `served_interval` coverage, `validation` MAE and `main_model_beats`. |
-| `GET /simulate?city=…&temp_yesterday=…&humidity=…&wind_speed=…&temp_momentum=…` | Illustrative only: model outputs for a synthetic 7-day history built from the sliders (`is_illustrative: true`). |
+| 1 Distributions | Delhi's daily max ranges 12.9–45.4 °C; Mumbai's only 23.1–38.7 °C. Rain is heavily right-skewed. |
+| 2 Seasons | Bengaluru and Mumbai are hottest in pre-monsoon (Mar–May). In Delhi, monsoon (Jun–Sep, 34.6 °C) and pre-monsoon (34.3 °C) have almost the same mean daily maximum, because June (38.3 °C) is Delhi's hottest month. Delhi's winter mean is only 20.8 °C. |
+| 3 Correlations | Same-day Pearson correlation with max temperature: humidity −0.77 / −0.60 / −0.62 (Bengaluru / Delhi / Mumbai); rain −0.32 / −0.03 / −0.41; wind −0.23 / +0.35 / −0.05. Correlation is not causation. |
+| 4 Raw autocorrelation | Stays high for weeks (Delhi 0.89 at lag 7, 0.70 at lag 30) because of the seasonal cycle, so it cannot choose a lag window by itself. |
+| 5 City comparison | Mean daily max 28.8 / 30.2 / 30.4 °C; days per year with max ≥ 35 °C: 6 / 93 / 12. |
+| 6 Day-to-day memory | After removing the day-of-year mean, autocorrelation falls from 0.75–0.84 (lag 1) to 0.24–0.38 (lag 7); partial autocorrelation is dominated by lag 1 (0.89–0.97). This supports a 7-day window as a reasonable choice, not a sharp cutoff. |
+| 7 Residuals | Ensemble residuals on the 2023 test year per city, with the p10/p90 offsets. |
 
-**`/predict` behaviour**
-1. Compute *D* and the target date in Indian time.
-2. Fetch Open-Meteo data and check that D−6 … D are all present and numeric.
-3. Build the features with `make_features()` and predict with the ensemble.
-4. Add the interval, both baselines, current conditions and the official forecast for exactly the target date.
+The EDA uses all five years, including 2023. It informed the 7-day window but no model parameters.
 
-If the weather service fails or its data is incomplete, the response is a copy of a saved snapshot of an earlier real
-run, with `is_demo_fallback: true`, `data_source: "demo_snapshot"`, `fallback_reason` and its original dates.
+## 10. Technology stack
 
-**Live-data cache and rate limits** (`LiveWeatherCache` in `backend/live_data.py`)
-- An Open-Meteo response that passes validation is kept in memory for 30 minutes per city and day *D*. Responses
-  built from it have `data_source: "live_cached"`. `weather_data_fetched_at` gives the time the data was fetched, and
-  the data is validated again on every request. Failed or invalid responses are never cached.
-- Simultaneous requests for one city wait for a single upstream call.
-- After HTTP 429 (Too Many Requests), no request is sent to Open-Meteo for the `Retry-After` period (15 minutes if the
-  header is absent, at most 24 hours) for any city. Meanwhile `/predict` returns the demo snapshot with
-  `fallback_reason: "rate_limited"`.
-- This only reduces how often the app calls Open-Meteo. If the free daily quota of the server's shared IP address is
-  exhausted, the app keeps showing the labelled demo snapshot until the quota resets.
-- The cache is per process and is lost on restart.
+| Tool | Purpose in this project |
+|---|---|
+| Python 3.11.9 | Language and runtime (`.python-version`) |
+| pandas, NumPy | Data loading, feature engineering |
+| scikit-learn 1.9.1 | Random Forest, Ridge, `TimeSeriesSplit`, metrics |
+| LightGBM 4.7.0 | Gradient-boosted trees; TreeSHAP contributions |
+| joblib | Saving and loading model files |
+| FastAPI, Uvicorn | Web API and static-file server |
+| requests | Calls to the Open-Meteo APIs |
+| HTML, CSS, plain JavaScript | Dashboard (no framework) |
+| Matplotlib, seaborn | EDA and residual figures (development only) |
+| pytest, httpx | Test suite and FastAPI test client (development only) |
+| nbformat, nbclient, ipykernel | Building and executing the notebook (development only) |
+| Streamlit | Optional alternative UI (development only, not deployed) |
+| Render | Hosting (free web service defined in `render.yaml`) |
 
-Example (abridged, real response captured on 25 Oct 2026):
+Runtime dependencies are pinned in `requirements.txt`. `requirements-dev.txt` adds the development tools.
+scikit-learn and LightGBM must stay at the pinned versions, because the saved models were created with them.
 
-```json
-{
-  "city": "Delhi",
-  "target_date": "2026-10-26",
-  "last_completed_date": "2026-10-24",
-  "data_source": "live",
-  "predicted_temp": 30.3,
-  "model_breakdown": {"ensemble": 30.3, "lightgbm": 29.8, "random_forest": 29.5, "linear_regression": 30.6},
-  "interval_80": {"lower": 27.9, "upper": 32.5, "p10_offset": -2.46, "p90_offset": 2.18,
-                  "nominal_coverage_pct": 80.0, "test_coverage_pct": 77.5, "test_days": 365},
-  "persistence_baseline": 30.9,
-  "climatology_baseline": 29.9,
-  "current_conditions": {"observed_at": "2026-10-25T01:00", "temperature": 22.1, "humidity": 71,
-                         "wind_speed": 6.0, "dew_point": 16.5},
-  "official_forecast": {"temperature_max": 30.3, "date": "2026-10-26", "available": true},
-  "input_window": [{"date": "2026-10-18", "temperature_2m_max": 29.4, "...": "..."}],
-  "is_demo_fallback": false
-}
+## 11. Repository structure
+
+```
+├── backend/
+│   ├── app.py                  # FastAPI app: routes, model loading, prediction pipeline, demo fallback
+│   ├── live_data.py            # IST dates, Open-Meteo fetch, input-window validation, cache + 429 cooldown
+│   └── sample_responses.json   # Demo snapshots: real responses captured on 25 Oct 2026
+├── data/                       # bengaluru.csv, delhi.csv, mumbai.csv (training and test data)
+├── docs/screenshots/           # Screenshots used in this README
+├── figures/                    # EDA figures 1-6, residual plots per city, eda_summary.json
+├── frontend/                   # index.html, style.css, app.js (dashboard)
+├── models/
+│   ├── {city}_ensemble|rf|lgb|lr.joblib   # Models used by the app ("lr" is the Ridge model)
+│   ├── {city}_q10|q90.joblib   # Quantile models: trained and evaluated, NOT used by the app
+│   ├── {city}_climatology.json # Day-of-year means from training years only
+│   ├── metrics.json            # Written by src/train.py
+│   └── evaluation_report.json  # Written by src/evaluate.py; served by /metrics and /predict
+├── notebooks/weather_prediction_pipeline.ipynb   # Executed analysis notebook
+├── scripts/
+│   ├── create_notebook.py      # Builds (and with --execute, runs) the notebook
+│   └── capture_demo_snapshots.py  # Refreshes the demo snapshots from a real live run
+├── src/                        # data_fetch, eda, features, train, ensemble, intervals, evaluate
+├── tests/                      # pytest suite (offline by default)
+├── main.py                     # Local entry point: starts the server and opens a browser
+├── streamlit_app.py            # Optional Streamlit UI
+├── requirements.txt            # Runtime dependencies (installed by Render)
+├── requirements-dev.txt        # Runtime + analysis, tests, notebook, Streamlit
+├── render.yaml                 # Render Blueprint (one web service)
+└── .python-version             # 3.11.9
 ```
 
-## 12. Installation and running locally
+## 12. Setup, running and API
 
-Requires Python 3.11 (tested with 3.11.9).
+**Local setup** (Python 3.11; tested with 3.11.9):
 
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate      macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt     # or requirements.txt for the web app only
-python main.py                          # http://127.0.0.1:8000, opens the browser
+python main.py                          # http://127.0.0.1:8000, opens a browser
 ```
 
-Alternatives:
-- Run the server only: `uvicorn backend.app:app --port 8000`
-- Streamlit interface: `streamlit run streamlit_app.py`
+Alternatives: `uvicorn backend.app:app --port 8000` (server only) or `streamlit run streamlit_app.py`.
 
-`scikit-learn==1.9.1` and `lightgbm==4.7.0` are the versions the saved models were created with. Other versions may
-fail to load them or change their predictions.
-
-Environment variables (all optional):
+Optional environment variables (no secrets are needed):
 
 | Variable | Purpose |
 |---|---|
 | `PORT`, `HOST` | Used by `main.py` (defaults `8000`, `127.0.0.1`) |
-| `RENDER` | If set, `main.py` does not try to open a browser |
-| `ALLOWED_ORIGINS` | Comma-separated origins allowed by CORS. Not needed when the dashboard is served by the app itself (default: CORS off) |
+| `RENDER` | If set, `main.py` does not open a browser |
+| `ALLOWED_ORIGINS` | Comma-separated origins for CORS. Not needed when the app serves its own dashboard (default: CORS off) |
 
-## 13. Testing
+**API** (interactive documentation at `/docs`):
+
+| Endpoint | Behaviour |
+|---|---|
+| `GET /` | Dashboard |
+| `GET /health` | `200` with `status`, `loaded_cities`, `artifact_errors`, `demo_snapshots_available`; `503` if any city's models failed to load |
+| `GET /cities` | `["Bengaluru","Delhi","Mumbai"]` |
+| `GET /predict?city=Delhi` | Prediction (`data_source` = `live`, `live_cached` or `demo_snapshot`). `400` unknown city; `503` models missing, or live data unusable with no snapshot; `500` internal error |
+| `GET /metrics?city=Delhi` | Test-year metrics, validation MAE, served-interval coverage, `main_model_beats`, `best_model_by_test_mae` |
+| `GET /simulate?city=…&temp_yesterday=…&humidity=…&wind_speed=…&temp_momentum=…` | Illustrative what-if output for a synthetic history (`is_illustrative: true`); not a forecast |
 
 ```bash
-python -m pytest tests/                       # offline: all network calls are mocked or blocked
-RUN_LIVE_TESTS=1 python -m pytest tests/ -k live_open_meteo   # optional smoke test against the real Open-Meteo API
+curl "https://ml-weather-predictor-ae4j.onrender.com/health"
+curl "https://ml-weather-predictor-ae4j.onrender.com/predict?city=Delhi"
+curl "https://ml-weather-predictor-ae4j.onrender.com/metrics?city=Mumbai"
 ```
 
-Last local run (25 Oct 2026, Python 3.11.9): **99 passed, 3 skipped** (the 3 skipped are the optional live tests).
-The 3 live tests also passed when run with `RUN_LIVE_TESTS=1`.
+Abridged real response, with live data, from a local run on 26 Oct 2026:
 
-| File | What it checks |
+```json
+{
+  "city": "Delhi",
+  "target_date": "2026-10-27",
+  "last_completed_date": "2026-10-25",
+  "generated_at": "2026-10-26T03:28:51+05:30",
+  "data_source": "live",
+  "weather_data_fetched_at": "2026-10-26T03:28:51+05:30",
+  "predicted_temp": 29.4,
+  "model_breakdown": {"ensemble": 29.4, "lightgbm": 29.4, "random_forest": 29.5, "linear_regression": 29.4},
+  "interval_80": {"lower": 26.9, "upper": 31.6, "p10_offset": -2.46, "p90_offset": 2.18,
+                  "nominal_coverage_pct": 80.0, "test_coverage_pct": 77.5, "test_days": 365},
+  "persistence_baseline": 29.1,
+  "climatology_baseline": 30.2,
+  "official_forecast": {"temperature_max": 29.5, "date": "2026-10-27", "available": true},
+  "is_demo_fallback": false
+}
+```
+
+A second request within 30 minutes returned the same values with `"data_source": "live_cached"` and the same
+`weather_data_fetched_at`.
+
+## 13. Live data, cache and rate limits
+
+**`data_source` values**
+
+| Value | When it is returned |
 |---|---|
-| `test_features.py` | No leakage (features unchanged when future rows are removed, all cities); lags and rolling windows use the intended dates; target is D+2; cyclical features use the target date; gaps are rejected; baselines and training-only climatology |
-| `test_live_data.py` | Indian-time dates on a UTC server (around midnight IST); the 7-day window excludes today and forecast rows; missing middle or recent dates, missing values, missing variables and malformed responses all raise errors instead of shifting the forecast |
-| `test_predict_pipeline.py` | `/predict` runs the real models and equals the saved ensemble applied to the training-time feature row; served interval equals the evaluated one; official forecast and current conditions are never invented; weather-service failures give a labelled, unmodified demo snapshot; missing models give `503`, internal errors give `500` |
-| `test_api.py` | Health, cities, invalid cities on every endpoint, frontend-facing fields, metrics consistency, simulator |
-| `test_evaluation.py` | Interval and coverage arithmetic; saved metrics and the evaluation report reproduce exactly from the saved models |
+| `live` | Open-Meteo was called for this request, and the 7-day window D−6 … D passed validation |
+| `live_cached` | A validated Open-Meteo response for the same city and *D*, fetched less than 30 minutes ago, was reused. It is validated again on every request; `weather_data_fetched_at` is its fetch time |
+| `demo_snapshot` | Live data could not be used. The response is a copy of a saved real run with its **original dates**, `is_demo_fallback: true`, `fallback_reason` and `fallback_message`. The dashboard shows a banner |
 
-## 14. Reproducing the analysis
+**How it works** (`LiveWeatherCache` in `backend/live_data.py`)
+- **Only validated data is cached.** Failed requests and invalid data are never stored.
+- **Cache key:** city, *D* and the request window (10 past days, 4 forecast days). A new Indian day therefore never
+  reuses yesterday's data.
+- **One request per city at a time:** concurrent requests for the same city wait for a single upstream call.
+- **HTTP 429 handling:** after a 429, **no** request is sent to Open-Meteo for any city until the cooldown ends. The
+  cooldown is the `Retry-After` value, or 15 minutes if the header is absent, capped at 24 hours. Meanwhile `/predict`
+  returns the demo snapshot with `fallback_reason: "rate_limited"`.
+- **Other failure reasons:** `timeout`, `upstream_error` (connection failure or other HTTP error), `malformed_response`,
+  `missing_variable`, `insufficient_history` and `missing_values`.
+- **The cache lives in memory.** It is lost on restart, and when the free Render instance sleeps.
+
+**The caching does not bypass the provider's quota.** It only reduces how often this app calls Open-Meteo. If the
+daily limit is exhausted, the app keeps showing the labelled demo snapshot until the provider accepts requests again.
+
+**Observed incident (26 Oct 2026).**
+- Render logs showed `Open-Meteo returned HTTP 429 … Daily API request limit exceeded. Please try again tomorrow.` for
+  all three cities.
+- The same requests succeeded from a local machine at the same time.
+- Why the limit was exhausted on the server has **not** been independently established. Shared outgoing IP addresses
+  on the hosting platform are a plausible explanation, not a proven one.
+
+## 14. Testing
 
 ```bash
-python -m src.data_fetch                    # re-download data (overwrites data/*.csv)
-python -m src.eda                           # figures 1-5 and eda_summary.json
-python -c "from src.eda import plot_memory_diagnostics; plot_memory_diagnostics()"   # figure 6
-python -m src.train                         # retrain all models, metrics.json, residual plots
-python -m src.evaluate                      # verify saved models -> models/evaluation_report.json
-python scripts/create_notebook.py --execute # rebuild and run the notebook
-python scripts/capture_demo_snapshots.py    # refresh demo snapshots (needs internet)
+python -m pytest tests/                                        # offline: network calls are mocked or blocked
+RUN_LIVE_TESTS=1 python -m pytest tests/ -k live_open_meteo    # optional: calls the real Open-Meteo API
 ```
 
-The notebook `notebooks/weather_prediction_pipeline.ipynb` has been executed and contains computed outputs for data
-validation, EDA, lag-window diagnostics, the leakage check, the split, model comparison, seasonal errors, residuals
-and interval coverage. Its last section is reserved for the team's own notes.
+Latest run (26 Oct 2026, Python 3.11.9, Windows): **132 collected, 129 passed, 0 failed, 3 skipped.** The 3 skipped
+tests are the live-API smoke tests. With `RUN_LIVE_TESTS=1` they passed from a local machine on 26 Oct 2026.
 
-## 15. Limitations
-
-- **Data:** only three cities and one variable, and five years of data (four for training): each season is seen only
-  four times.
-- **Spatial coverage:** a single grid point per city, not a weather station.
-- **Training vs. live data:** training uses reanalysis data, but live inputs come from a forecast model (small
-  differences; see [Data](#5-data)).
-- **The deployed models are trained on 2019–2022.** They are being used in 2026, and 2023 already shows a warm shift.
-- **The ensemble does not consistently beat persistence** on the test year.
-- **The interval** assumes future errors look like past errors. Coverage was 72% in Bengaluru, not 80%.
-- **Extrapolation:** tree models cannot predict above the highest temperature they were trained on.
-- **Small test sample:** one test year is 365 autocorrelated days.
-- **What-if simulator:** it uses synthetic, unrealistic histories (fixed pattern, no rain) and is for illustration only.
-- **SHAP:** the explanations cover only the LightGBM component, which has a small weight in the blend.
-- **Demo snapshots:** they become stale over time. They are shown with their original dates and a banner.
-
-## 16. Deployment
-
-**Status: not deployed; no public URL exists yet.**
-
-The app is a **single web service** that serves both the API and the dashboard from the same origin. `render.yaml`
-describes it as a Render free web service:
-
-| Setting | Value |
+| File (tests collected) | What it checks |
 |---|---|
+| `test_features.py` (22) | No leakage, correct lag dates, D+2 target, cyclical features, gap rejection, baselines, training-only climatology |
+| `test_live_data.py` (29) | IST dates on a UTC server, input-window validation, HTTP 429/403/502, connection and timeout classification, safe log messages |
+| `test_live_cache.py` (21) | Cache hits and expiry, failures never cached, `Retry-After` and default cooldown, concurrency, `live_cached` labelling |
+| `test_predict_pipeline.py` (19) | `/predict` runs the real saved models on training-identical features; no invented values; labelled fallback; 503/500 paths |
+| `test_api.py` (26) | Endpoints, city validation, metrics consistency, simulator, live smoke tests (skipped by default) |
+| `test_evaluation.py` (15) | Interval and coverage arithmetic; saved metrics reproduce from the saved models |
+
+There is no continuous integration; the tests are run manually.
+
+## 15. Deployment
+
+| Setting (`render.yaml`) | Value |
+|---|---|
+| Service | One free Python web service, `ml-weather-predictor` |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `uvicorn backend.app:app --host 0.0.0.0 --port $PORT` |
 | Python version | 3.11.9 (from `.python-version`) |
-| Health check path | `/health` (returns 503 if any city's models failed to load) |
+| Health check path | `/health` |
 
-**Notes**
-- The app has been verified on Windows only. Loading the models and serving requests on Render's Linux servers has
-  not been tested yet.
-- `models/`, `figures/`, `data/` and `backend/sample_responses.json` must be in the repository: the app reads them at
-  startup.
-- Free instances sleep when idle. The first request after a sleep can take about a minute; the dashboard shows a
-  loading message. Open `/health` before a demo to wake the server.
+**Verified on the deployed site (26 Oct 2026)**
+- **Models load on Render's Linux servers.** `/health` reports `healthy` with no artifact errors.
+- **The read-only endpoints work:** `/`, `/cities`, `/metrics`, `/simulate` and `/docs`; an unknown city returns `400`.
+- **Recent pushes went live within minutes.** In the two observed cases, a new commit on `main` was running within a
+  few minutes. Whether that was an automatic deploy or a manual one was not checked.
 
-## 17. Future improvements
+**Free-tier behaviour.** Free instances sleep when idle, so the first request after a sleep is slow. Open `/health`
+before a demo to wake the server. The in-memory cache starts empty after every wake-up or restart.
 
-- Retrain on more years (the archive goes back decades) and refresh the models periodically.
-- Predict the change from day D, or the anomaly from climatology, and add variables such as minimum temperature,
-  cloud cover, radiation and pressure. Evaluate any change on validation folds first.
-- Choose interval-calibration refinements on validation data (for example, excluding the first, shortest CV fold, or
-  recalibrating on recent errors), then re-check coverage on a new test period.
-- Explain the full ensemble prediction (not only LightGBM).
+## 16. Limitations
+
+**Model and evaluation**
+- **Persistence is not consistently beaten.** The ensemble loses to persistence in Mumbai on both metrics and in
+  Bengaluru on MAE.
+- **The interval is not fully calibrated.** Coverage is 72.3% in Bengaluru against a nominal 80%.
+- **One test year** of 365 autocorrelated days per city; season-level figures rest on 61–122 days each.
+- **Slightly optimistic validation:** blend weights, hyperparameters and interval offsets all come from the same OOF
+  predictions.
+- **The models were trained on 2019–2022 and are used in 2026.** 2023 already showed a warm shift, and there is no
+  retraining.
+- **Tree models cannot extrapolate** above the temperatures they were trained on.
+
+**Data**
+- Five years of data; each season appears four times in training.
+- One grid point per city, not a station.
+- Reanalysis data for training versus forecast-model data for live inputs (spot-checked only).
+
+**Technical and deployment**
+- **Live data depends on a free third-party API** whose daily quota is currently exhausted on the server.
+- **The cache is in memory** and lost on restart or sleep.
+- **The demo snapshots are fixed** at 25 Oct 2026.
+- **The explanation covers only LightGBM**, which has 0.0–6.2% of the blend weight, so it says little about the served
+  prediction.
+- **The what-if simulator is synthetic.** It builds an artificial history that is not even internally consistent, and
+  it accepts out-of-range inputs.
+
+**Ethical and practical**
+- This is a student project, **not an official forecast**. It should not be used for safety decisions such as
+  heatwave warnings.
+- The dashboard shows the official forecast for comparison, and states clearly when it shows a demo snapshot.
+
+## 17. Future work
+
+Not implemented:
+- **More data:** retrain on more years and refresh the models periodically.
+- **Live-data reliability:** a persistent cache, a dedicated outgoing IP or a provider API key.
+- **Better targets and inputs:** predict the change from D or the anomaly from climatology; add variables such as
+  minimum temperature, cloud cover, radiation and pressure.
+- **Interval calibration:** choose refinements on validation data (for example conformal or recency-weighted
+  intervals), then re-test on a new period.
+- **Explanations:** explain the full ensemble rather than only LightGBM.
+- **Simulator:** validate its inputs and make its synthetic history internally consistent.
+- **CI:** run the test suite automatically on each push.
+
+## 18. Data sources and attribution
+
+Weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
+- **Training data:** the Historical Weather API. Open-Meteo's documentation describes it as built on reanalysis
+  datasets such as ECMWF ERA5.
+- **Live inputs, current conditions and the reference forecast:** the Forecast API.
+
+The free API is intended for non-commercial use and enforces request limits; see Open-Meteo's terms.
+
+## 19. Viva and demo guide
+
+1. **Wake the server:** open `/health` a minute before the demo. It shows `healthy` and the three loaded cities.
+2. **Open the dashboard and select a city.**
+   - **No banner:** the prediction is live or `live_cached`. Explain the target date (tomorrow in India) and *D*.
+   - **Banner:** say so plainly: *"The weather provider is rate-limiting the server, so this is a saved real run from
+     25 Oct 2026, not today's forecast."*
+3. **Walk through the cards:**
+   - the prediction with its interval and measured coverage;
+   - the model-vs-baselines table (point out where persistence wins);
+   - the 7 input days;
+   - the SHAP card, noting that it explains only LightGBM;
+   - errors by season.
+4. **EDA tab:** seasonality, the correlations, and the lag-window evidence in figure 6.
+5. **API:** show `/docs`, then `/predict?city=Delhi` and the `data_source` / `fallback_reason` fields.
+6. **Close:** honest evaluation against baselines, measured uncertainty, a leakage-free shared feature pipeline, and
+   tested failure handling. Then name the limitations and future work above.
+
+The full question bank (35+ questions with answers) and a step-by-step demo script are in
+[PROJECT_DEEP_DIVE.md](PROJECT_DEEP_DIVE.md#chapter-15-viva-preparation).
