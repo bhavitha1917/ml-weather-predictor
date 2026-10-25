@@ -26,14 +26,42 @@ IST = timezone(timedelta(hours=5, minutes=30), name="IST")
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 CURRENT_VARIABLES = ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "dew_point_2m"]
 REQUEST_TIMEOUT_SECONDS = 10
+# Longest excerpt of an error response body kept in a log message
+MAX_ERROR_DETAIL_CHARS = 200
 
 
 class WeatherDataError(Exception):
     """The weather service failed, or returned data that cannot support a valid forecast."""
 
-    def __init__(self, reason: str, message: str):
+    def __init__(self, reason: str, message: str, http_status: int = None):
         self.reason = reason
+        self.http_status = http_status
         super().__init__(message)
+
+
+def _describe_http_error(resp) -> str:
+    """
+    One-line, size-limited description of an HTTP error response, safe to log.
+    Keeps the status, the Retry-After header and Open-Meteo's own error text
+    ({"error": true, "reason": "..."}); never the request URL or other headers.
+    """
+    message = f"Open-Meteo returned HTTP {resp.status_code}"
+    if resp.reason:
+        message += f" {resp.reason}"
+    retry_after = resp.headers.get("Retry-After")
+    if retry_after:
+        message += f"; Retry-After: {retry_after[:20]}"
+    try:
+        body = resp.json()
+        detail = body.get("reason") if isinstance(body, dict) else None
+    except ValueError:
+        detail = resp.text
+    detail = " ".join(str(detail or "").split())
+    if detail:
+        if len(detail) > MAX_ERROR_DETAIL_CHARS:
+            detail = detail[:MAX_ERROR_DETAIL_CHARS] + "..."
+        message += f"; detail: {detail}"
+    return message
 
 
 def ist_now() -> datetime:
@@ -67,12 +95,16 @@ def fetch_live_recent_weather(coords: dict, past_days: int = 10, forecast_days: 
     }
     try:
         resp = requests.get(FORECAST_URL, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
-        resp.raise_for_status()
-        data = resp.json()
     except requests.Timeout as e:
         raise WeatherDataError("timeout", "Open-Meteo did not respond in time") from e
+    except requests.ConnectionError as e:
+        raise WeatherDataError("upstream_error", f"Could not connect to Open-Meteo ({type(e).__name__})") from e
     except requests.RequestException as e:
         raise WeatherDataError("upstream_error", f"Open-Meteo request failed ({type(e).__name__})") from e
+    if resp.status_code >= 400:
+        raise WeatherDataError("upstream_error", _describe_http_error(resp), http_status=resp.status_code)
+    try:
+        data = resp.json()
     except ValueError as e:
         raise WeatherDataError("malformed_response", "Open-Meteo response was not valid JSON") from e
     if not isinstance(data, dict):

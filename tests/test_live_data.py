@@ -1,13 +1,24 @@
 """
 tests/test_live_data.py
-Forecast-date (timezone) logic and validation of the live observation window.
+Forecast-date (timezone) logic, validation of the live observation window, and how
+Open-Meteo request failures are classified and described in the logs.
 """
 
+import json
+import logging
 from datetime import date, datetime
 
 import pytest
+import requests
 
-from backend.live_data import IST, WeatherDataError, build_observation_window, forecast_dates
+from backend.live_data import (
+    IST,
+    MAX_ERROR_DETAIL_CHARS,
+    WeatherDataError,
+    build_observation_window,
+    fetch_live_recent_weather,
+    forecast_dates,
+)
 from src.features import REQUIRED_HISTORY_DAYS
 from tests.conftest import make_payload, utc
 
@@ -122,3 +133,102 @@ def test_non_numeric_value_raises():
     with pytest.raises(WeatherDataError) as exc:
         build_observation_window(payload, D)
     assert exc.value.reason == "missing_values"
+
+
+# --- Open-Meteo request failures -------------------------------------------------------
+
+DELHI = {"latitude": 28.6139, "longitude": 77.2090}
+
+
+def fake_response(status, body=b"", headers=None, reason=""):
+    resp = requests.Response()
+    resp.status_code = status
+    resp.reason = reason
+    resp._content = body
+    resp.headers.update(headers or {})
+    resp.url = "https://api.open-meteo.com/v1/forecast?latitude=28.6139&longitude=77.209"
+    return resp
+
+
+def serve(monkeypatch, outcome):
+    """Make requests.get return a response, or raise an exception, without any network access."""
+    def fake_get(*args, **kwargs):
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+    monkeypatch.setattr("requests.get", fake_get)
+
+
+def test_http_429_reports_status_retry_after_and_api_reason(monkeypatch):
+    body = json.dumps({"error": True, "reason": "Minutely API request limit exceeded. Please try again in one minute."})
+    serve(monkeypatch, fake_response(429, body.encode(), {"Retry-After": "60"}, "Too Many Requests"))
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    assert exc.value.reason == "upstream_error"
+    assert exc.value.http_status == 429
+    assert str(exc.value) == ("Open-Meteo returned HTTP 429 Too Many Requests; Retry-After: 60; "
+                              "detail: Minutely API request limit exceeded. Please try again in one minute.")
+
+
+def test_http_error_with_large_html_body_is_one_short_line_without_url(monkeypatch):
+    html = "<html>\n<body>" + "Access denied " * 200 + "</body></html>"
+    serve(monkeypatch, fake_response(403, html.encode(), reason="Forbidden"))
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    message = str(exc.value)
+    assert exc.value.http_status == 403
+    assert message.startswith("Open-Meteo returned HTTP 403 Forbidden; detail: <html> <body>Access denied")
+    assert "\n" not in message and "latitude" not in message and "open-meteo.com" not in message
+    assert len(message) <= len("Open-Meteo returned HTTP 403 Forbidden; detail: ") + MAX_ERROR_DETAIL_CHARS + 3
+
+
+def test_http_error_with_empty_body_still_reports_status(monkeypatch):
+    serve(monkeypatch, fake_response(502, reason="Bad Gateway"))
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    assert exc.value.http_status == 502
+    assert str(exc.value) == "Open-Meteo returned HTTP 502 Bad Gateway"
+
+
+def test_connection_error_is_not_reported_as_http_status(monkeypatch):
+    serve(monkeypatch, requests.ConnectionError("Name or service not known: api.open-meteo.com"))
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    assert exc.value.reason == "upstream_error"
+    assert exc.value.http_status is None
+    assert str(exc.value) == "Could not connect to Open-Meteo (ConnectionError)"
+
+
+@pytest.mark.parametrize("error", [requests.ReadTimeout(), requests.ConnectTimeout()])
+def test_timeouts_are_reported_as_timeout(monkeypatch, error):
+    serve(monkeypatch, error)
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    assert exc.value.reason == "timeout" and exc.value.http_status is None
+
+
+def test_success_with_invalid_json_is_malformed_not_upstream(monkeypatch):
+    serve(monkeypatch, fake_response(200, b"<html>maintenance</html>", reason="OK"))
+    with pytest.raises(WeatherDataError) as exc:
+        fetch_live_recent_weather(DELHI)
+    assert exc.value.reason == "malformed_response"
+
+
+def test_success_returns_parsed_payload(monkeypatch):
+    payload = make_payload("delhi", "2023-06-05", "2023-06-18")
+    serve(monkeypatch, fake_response(200, json.dumps(payload).encode(), reason="OK"))
+    assert fetch_live_recent_weather(DELHI) == payload
+
+
+def test_api_logs_http_status_but_response_only_exposes_reason_code(monkeypatch, caplog):
+    from fastapi.testclient import TestClient
+    import backend.app as api
+
+    body = json.dumps({"error": True, "reason": "Daily API request limit exceeded."})
+    serve(monkeypatch, fake_response(429, body.encode(), reason="Too Many Requests"))
+    with TestClient(api.app) as client, caplog.at_level(logging.WARNING, logger="weather_api"):
+        data = client.get("/predict?city=Delhi").json()
+    assert data["is_demo_fallback"] is True and data["fallback_reason"] == "upstream_error"
+    assert "HTTP 429" not in json.dumps(data)
+    assert any("Live data unusable for delhi (upstream_error): Open-Meteo returned HTTP 429 Too Many Requests; "
+               "detail: Daily API request limit exceeded." in r.getMessage() for r in caplog.records)
