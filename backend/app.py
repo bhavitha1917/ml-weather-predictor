@@ -32,6 +32,10 @@ from src.data_fetch import CITIES
 from src.ensemble import StackingEnsemble  # noqa: F401  (needed to unpickle *_ensemble.joblib)
 from src.intervals import NOMINAL_COVERAGE, interval_bounds
 from backend.live_data import (
+    IST,
+    LIVE_FORECAST_DAYS,
+    LIVE_PAST_DAYS,
+    LiveWeatherCache,
     WeatherDataError,
     build_observation_window,
     fetch_live_recent_weather,
@@ -57,6 +61,7 @@ METRICS = {}          # city_key -> saved test-year metrics (models/metrics.json
 EVALUATION = {}       # city_key -> verified re-evaluation (models/evaluation_report.json, src/evaluate.py)
 FALLBACK_SAMPLES = {}  # city_key -> demo snapshot captured from a real run
 ARTIFACT_ERRORS = {}  # city_key -> list of problems found while loading
+LIVE_WEATHER_CACHE = LiveWeatherCache()  # validated Open-Meteo responses (30 min) + HTTP 429 cooldown
 
 FEATURE_DESCRIPTIONS = {
     "temp_lag_0": ("Max temperature on day D", "Most recent completed day (persistence signal)"),
@@ -252,10 +257,18 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
     last_completed, target = forecast_dates(now)
     target_date = target.isoformat()
 
+    weather_fetched_at, from_cache = now, False
     if raw_data is None:
-        raw_data = fetch_live_recent_weather(CITIES[city_key.capitalize()])
+        coords = CITIES[city_key.capitalize()]
+        raw_data, weather_fetched_at, from_cache = LIVE_WEATHER_CACHE.get(
+            (city_key, last_completed.isoformat(), LIVE_PAST_DAYS, LIVE_FORECAST_DAYS),
+            fetch=lambda: fetch_live_recent_weather(coords, past_days=LIVE_PAST_DAYS, forecast_days=LIVE_FORECAST_DAYS),
+            validate=lambda raw: build_observation_window(raw, last_completed),
+            now_ist=now,
+        )
 
-    # Validated, consecutive completed days D-6 .. D (raises WeatherDataError otherwise)
+    # Validated, consecutive completed days D-6 .. D (raises WeatherDataError otherwise);
+    # cached responses go through exactly the same check
     window_df = build_observation_window(raw_data, last_completed)
 
     # Build features strictly up to Day D with the same function used in training
@@ -307,7 +320,9 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
         "target_date": target_date,
         "last_completed_date": last_completed.isoformat(),
         "generated_at": now.isoformat(timespec="seconds"),
-        "data_source": "live",
+        # "live_cached": the same validated Open-Meteo data, reused for up to 30 minutes
+        "data_source": "live_cached" if from_cache else "live",
+        "weather_data_fetched_at": weather_fetched_at.astimezone(IST).isoformat(timespec="seconds"),
         "predicted_temp": predicted_val,
         "model_breakdown": {
             "ensemble": predicted_val,

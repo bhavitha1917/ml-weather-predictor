@@ -164,8 +164,9 @@ def test_http_429_reports_status_retry_after_and_api_reason(monkeypatch):
     serve(monkeypatch, fake_response(429, body.encode(), {"Retry-After": "60"}, "Too Many Requests"))
     with pytest.raises(WeatherDataError) as exc:
         fetch_live_recent_weather(DELHI)
-    assert exc.value.reason == "upstream_error"
+    assert exc.value.reason == "rate_limited"
     assert exc.value.http_status == 429
+    assert exc.value.retry_after_seconds == 60
     assert str(exc.value) == ("Open-Meteo returned HTTP 429 Too Many Requests; Retry-After: 60; "
                               "detail: Minutely API request limit exceeded. Please try again in one minute.")
 
@@ -228,7 +229,7 @@ def test_api_logs_http_status_but_response_only_exposes_reason_code(monkeypatch,
     serve(monkeypatch, fake_response(429, body.encode(), reason="Too Many Requests"))
     with TestClient(api.app) as client, caplog.at_level(logging.WARNING, logger="weather_api"):
         data = client.get("/predict?city=Delhi").json()
-    assert data["is_demo_fallback"] is True and data["fallback_reason"] == "upstream_error"
+    assert data["is_demo_fallback"] is True and data["fallback_reason"] == "rate_limited"
     assert "HTTP 429" not in json.dumps(data)
-    assert any("Live data unusable for delhi (upstream_error): Open-Meteo returned HTTP 429 Too Many Requests; "
+    assert any("Live data unusable for delhi (rate_limited): Open-Meteo returned HTTP 429 Too Many Requests; "
                "detail: Daily API request limit exceeded." in r.getMessage() for r in caplog.records)

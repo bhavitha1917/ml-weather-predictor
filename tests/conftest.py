@@ -58,3 +58,12 @@ def block_real_http(monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("Unexpected real HTTP request in an offline test")
     monkeypatch.setattr("requests.get", refuse)
+
+
+@pytest.fixture(autouse=True)
+def fresh_live_weather_cache():
+    """Each test starts with an empty live-weather cache and no rate-limit cooldown."""
+    import backend.app as api
+    api.LIVE_WEATHER_CACHE.clear()
+    yield
+    api.LIVE_WEATHER_CACHE.clear()

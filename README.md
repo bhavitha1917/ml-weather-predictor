@@ -301,6 +301,18 @@ frontend calls the API on the same origin. Interactive documentation is at `/doc
 If the weather service fails or its data is incomplete, the response is a copy of a saved snapshot of an earlier real
 run, with `is_demo_fallback: true`, `data_source: "demo_snapshot"`, `fallback_reason` and its original dates.
 
+**Live-data cache and rate limits** (`LiveWeatherCache` in `backend/live_data.py`)
+- An Open-Meteo response that passes validation is kept in memory for 30 minutes per city and day *D*. Responses
+  built from it have `data_source: "live_cached"`. `weather_data_fetched_at` gives the time the data was fetched, and
+  the data is validated again on every request. Failed or invalid responses are never cached.
+- Simultaneous requests for one city wait for a single upstream call.
+- After HTTP 429 (Too Many Requests), no request is sent to Open-Meteo for the `Retry-After` period (15 minutes if the
+  header is absent, at most 24 hours) for any city. Meanwhile `/predict` returns the demo snapshot with
+  `fallback_reason: "rate_limited"`.
+- This only reduces how often the app calls Open-Meteo. If the free daily quota of the server's shared IP address is
+  exhausted, the app keeps showing the labelled demo snapshot until the quota resets.
+- The cache is per process and is lost on restart.
+
 Example (abridged, real response captured on 25 Oct 2026):
 
 ```json
