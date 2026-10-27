@@ -62,8 +62,18 @@ def block_real_http(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fresh_live_weather_cache():
-    """Each test starts with an empty live-weather cache and no rate-limit cooldown."""
+    """Each test starts with empty weather caches, no rate-limit cooldown and no scheduled-file failures."""
     import backend.app as api
     api.LIVE_WEATHER_CACHE.clear()
+    api.SCHEDULED_WEATHER_CACHE.clear()
+    api.SCHEDULED_FAILURES.clear()
     yield
     api.LIVE_WEATHER_CACHE.clear()
+    api.SCHEDULED_WEATHER_CACHE.clear()
+    api.SCHEDULED_FAILURES.clear()
+
+
+@pytest.fixture(autouse=True)
+def scheduled_source_disabled(monkeypatch):
+    """The scheduled weather file is off unless a test enables it (tests/test_scheduled_weather.py)."""
+    monkeypatch.setenv("SCHEDULED_WEATHER_URL", "")

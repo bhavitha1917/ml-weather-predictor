@@ -13,10 +13,13 @@ so all calendar logic goes through ist_now() / forecast_dates().
 """
 
 import copy
+import json
+import os
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 
 import pandas as pd
 import requests
@@ -45,6 +48,19 @@ MAX_STALE_AGE_SECONDS = 3 * 60 * 60
 # After HTTP 429, no request is sent for Retry-After seconds, or this long if the header is absent
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 15 * 60
 MAX_RATE_LIMIT_BACKOFF_SECONDS = 24 * 60 * 60
+
+# Scheduled fetch: a GitHub Actions job (scripts/fetch_scheduled_weather.py) saves validated
+# Open-Meteo responses to weather.json on the weather-data branch. SCHEDULED_WEATHER_URL overrides
+# the location; an empty value disables the scheduled source.
+DEFAULT_SCHEDULED_WEATHER_URL = (
+    "https://raw.githubusercontent.com/bhavitha1917/ml-weather-predictor/weather-data/weather.json")
+SCHEDULED_SCHEMA_VERSION = 1
+SCHEDULED_MAX_BYTES = 1_000_000
+# A scheduled file is re-read at most this often per city, and not retried for this long after a failure
+SCHEDULED_CACHE_TTL_SECONDS = 10 * 60
+SCHEDULED_RETRY_SECONDS = 5 * 60
+# Tolerance for a fetch timestamp slightly in the future (clock differences between runner and server)
+SCHEDULED_CLOCK_SKEW_SECONDS = 5 * 60
 
 
 class WeatherDataError(Exception):
@@ -150,6 +166,84 @@ def fetch_live_recent_weather(coords: dict, past_days: int = LIVE_PAST_DAYS,
     return data
 
 
+def scheduled_weather_url():
+    """URL of the scheduled weather file, or None when the scheduled source is disabled."""
+    return os.environ.get("SCHEDULED_WEATHER_URL", DEFAULT_SCHEDULED_WEATHER_URL).strip() or None
+
+
+def _is_allowed_scheduled_url(url: str) -> bool:
+    """HTTPS only; plain HTTP is accepted for a local test server."""
+    parsed = urlparse(url)
+    return parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost"))
+
+
+def fetch_scheduled_weather(city_key: str, coords: dict, last_completed: date, now_ist: datetime,
+                            url: str = None) -> dict:
+    """
+    Read one city's entry from the scheduled weather file and return
+    {"raw": <Open-Meteo response>, "fetched_at": <when the runner fetched it, IST>}.
+
+    The file is untrusted input: size, schema, coordinates, D and age are checked here, and the
+    caller still runs build_observation_window on "raw". Entries for another D, or older than
+    MAX_STALE_AGE_SECONDS, are rejected. Errors never carry an HTTP status, so a failure here
+    never starts the Open-Meteo rate-limit cooldown.
+    """
+    url = url or scheduled_weather_url()
+    if not url:
+        raise WeatherDataError("scheduled_disabled", "Scheduled weather source is disabled")
+    if not _is_allowed_scheduled_url(url):
+        raise WeatherDataError("scheduled_invalid", "Scheduled weather URL must use HTTPS")
+    try:
+        resp = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS, stream=True)
+    except requests.RequestException as e:
+        raise WeatherDataError("scheduled_unavailable",
+                               f"Scheduled weather file could not be fetched ({type(e).__name__})") from e
+    with resp:
+        if resp.status_code != 200:
+            raise WeatherDataError("scheduled_unavailable", f"Scheduled weather file returned HTTP {resp.status_code}")
+        body = bytearray()
+        try:
+            for chunk in resp.iter_content(chunk_size=65536):
+                body += chunk
+                if len(body) > SCHEDULED_MAX_BYTES:
+                    raise WeatherDataError("scheduled_invalid",
+                                           f"Scheduled weather file is larger than {SCHEDULED_MAX_BYTES} bytes")
+        except requests.RequestException as e:
+            raise WeatherDataError("scheduled_unavailable",
+                                   f"Scheduled weather file could not be read ({type(e).__name__})") from e
+    try:
+        doc = json.loads(bytes(body))
+    except ValueError as e:
+        raise WeatherDataError("scheduled_invalid", "Scheduled weather file is not valid JSON") from e
+    if not isinstance(doc, dict) or doc.get("schema_version") != SCHEDULED_SCHEMA_VERSION:
+        raise WeatherDataError("scheduled_invalid", "Scheduled weather file has an unknown schema")
+    cities = doc.get("cities")
+    entry = cities.get(city_key) if isinstance(cities, dict) else None
+    if not isinstance(entry, dict):
+        raise WeatherDataError("scheduled_missing_city", f"Scheduled weather file has no entry for {city_key}")
+    if entry.get("latitude") != coords["latitude"] or entry.get("longitude") != coords["longitude"]:
+        raise WeatherDataError("scheduled_invalid", f"Scheduled entry for {city_key} has unexpected coordinates")
+    if entry.get("last_completed_date") != last_completed.isoformat():
+        raise WeatherDataError("scheduled_outdated",
+                               f"Scheduled entry for {city_key} is for D={entry.get('last_completed_date')!s:.10}, "
+                               f"expected {last_completed.isoformat()}")
+    try:
+        fetched_at = datetime.fromisoformat(str(entry.get("fetched_at_utc")))
+    except ValueError as e:
+        raise WeatherDataError("scheduled_invalid", f"Scheduled entry for {city_key} has no valid fetch time") from e
+    if fetched_at.tzinfo is None:
+        raise WeatherDataError("scheduled_invalid", f"Scheduled entry for {city_key} has a fetch time without timezone")
+    age = (now_ist - fetched_at).total_seconds()
+    if age < -SCHEDULED_CLOCK_SKEW_SECONDS:
+        raise WeatherDataError("scheduled_invalid", f"Scheduled entry for {city_key} has a fetch time in the future")
+    if age >= MAX_STALE_AGE_SECONDS:
+        raise WeatherDataError("scheduled_outdated",
+                               f"Scheduled entry for {city_key} was fetched {age / 3600:.1f} h ago")
+    if not isinstance(entry.get("raw"), dict):
+        raise WeatherDataError("scheduled_invalid", f"Scheduled entry for {city_key} has no weather data")
+    return {"raw": entry["raw"], "fetched_at": fetched_at.astimezone(IST)}
+
+
 def build_observation_window(raw: dict, last_completed: date) -> pd.DataFrame:
     """
     Extract and validate the REQUIRED_HISTORY_DAYS consecutive completed days ending on
@@ -244,25 +338,32 @@ class LiveWeatherCache:
         with self._lock:
             self._blocked_until = self._clock() + wait
 
+    def _too_old(self, entry, now_ist: datetime) -> bool:
+        """True when the data itself (by its real fetch time) is at least max_stale_seconds old."""
+        return (now_ist - entry[1]).total_seconds() >= self.max_stale_seconds
+
     def _stale_entry(self, entry, now_ist: datetime):
         """The expired entry if it may still be reused while rate-limited, else None."""
-        if entry is None or self._clock() - entry[0] >= self.max_stale_seconds:
+        if entry is None or self._clock() - entry[0] >= self.max_stale_seconds or self._too_old(entry, now_ist):
             return None
         if entry[1].astimezone(IST).date() != now_ist.astimezone(IST).date():
             return None  # never reuse data fetched on a previous Indian day
         return entry
 
-    def get(self, key, fetch, validate, now_ist: datetime):
+    def get(self, key, fetch, validate, now_ist: datetime, fetched_at_of=None):
         """
         Return (payload, fetched_at, from_cache, stale_error). fetch() calls the API; validate(payload)
         raises WeatherDataError for unusable data. The returned payload is a copy the caller may modify.
         stale_error is None for fresh or cached data; for a reused stale entry it is the rate-limit
         WeatherDataError that prevented a refresh.
+        fetched_at_of(payload) gives the data's real fetch time when it was fetched earlier elsewhere
+        (the scheduled file); by default it is now_ist. Data whose real age reaches max_stale_seconds
+        is never returned.
         """
         with self._lock_for(key):
             with self._lock:
                 entry = self._entries.get(key)
-            if entry is not None and self._clock() - entry[0] < self.ttl_seconds:
+            if entry is not None and self._clock() - entry[0] < self.ttl_seconds and not self._too_old(entry, now_ist):
                 _, fetched_at, payload = entry
                 return copy.deepcopy(payload), fetched_at, True, None
             stale = self._stale_entry(entry, now_ist)
@@ -285,10 +386,11 @@ class LiveWeatherCache:
                         return copy.deepcopy(stale[2]), stale[1], True, e
                 raise
             validate(payload)
+            fetched_at = fetched_at_of(payload) if fetched_at_of is not None else now_ist
             stored_at = self._clock()
             with self._lock:
                 # Drop entries too old even for stale reuse (e.g. previous days' keys, never read again)
                 for old_key in [k for k, (t, _, _) in self._entries.items() if stored_at - t >= self.max_stale_seconds]:
                     del self._entries[old_key]
-                self._entries[key] = (stored_at, now_ist, copy.deepcopy(payload))
-            return payload, now_ist, False, None
+                self._entries[key] = (stored_at, fetched_at, copy.deepcopy(payload))
+            return payload, fetched_at, False, None

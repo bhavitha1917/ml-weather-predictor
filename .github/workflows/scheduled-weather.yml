@@ -1,0 +1,58 @@
+# Fetches and validates the recent Open-Meteo data for the three cities every hour from a
+# GitHub-hosted runner and publishes it as weather.json on the weather-data branch.
+# The deployed API reads that file (backend/live_data.py, fetch_scheduled_weather) instead of
+# calling Open-Meteo from its shared server address. Render deploys from main, so updates to
+# weather-data never trigger a redeploy. No secrets are used besides the built-in GITHUB_TOKEN.
+name: Scheduled weather fetch
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # hourly at :07 UTC; GitHub may delay or skip scheduled runs
+  workflow_dispatch:       # manual "Run workflow" button
+
+permissions:
+  contents: write          # only to update the weather-data branch
+
+concurrency:
+  group: scheduled-weather
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.repository == 'bhavitha1917/ml-weather-predictor'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      # Only what the fetch and validation code imports, at the versions in requirements.txt
+      - name: Install dependencies
+        run: pip install numpy==2.4.6 pandas==3.0.6 requests==2.34.2
+
+      - name: Get the previous weather.json
+        run: |
+          if git fetch --depth=1 origin weather-data 2>/dev/null; then
+            git show FETCH_HEAD:weather.json > previous.json || echo '{}' > previous.json
+          else
+            echo '{}' > previous.json
+          fi
+
+      - name: Fetch and validate
+        run: python scripts/fetch_scheduled_weather.py --previous previous.json --output out/weather.json
+
+      # One commit containing only weather.json, force-pushed so the branch never grows
+      - name: Publish to the weather-data branch
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          blob=$(git hash-object -w out/weather.json)
+          tree=$(printf '100644 blob %s\tweather.json\n' "$blob" | git mktree)
+          commit=$(git commit-tree "$tree" -m "Scheduled weather data $(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          git push --force origin "$commit:refs/heads/weather-data"

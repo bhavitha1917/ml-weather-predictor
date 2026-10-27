@@ -182,11 +182,25 @@ function renderDemoBanner(data) {
     }
 }
 
+// The real time the weather data was fetched, who fetched it, and a warning when it is old.
+// Demo snapshots carry no fetch time and keep their own banner.
+const STALE_NOTE_MINUTES = 90;
+
+function weatherFetchNote(data) {
+    if (data.is_demo_fallback || !data.weather_data_fetched_at) return "";
+    const origin = data.weather_data_origin === "github_actions" ? "hourly scheduled fetch"
+        : data.weather_data_origin === "open_meteo_direct" ? "direct request" : "Open-Meteo";
+    let note = ` • Weather data fetched ${data.weather_data_fetched_at.replace("T", " ").slice(0, 16)} IST (${origin})`;
+    const ageMinutes = (Date.parse(data.generated_at) - Date.parse(data.weather_data_fetched_at)) / 60000;
+    if (ageMinutes >= STALE_NOTE_MINUTES) note += `, ${Math.floor(ageMinutes)} min old, may be out of date`;
+    return note;
+}
+
 // --- Main prediction card, current conditions, official reference ---
 function renderPrediction(data, metricsData) {
     setText("hero-city-name", data.city);
     setText("target-date-display", `Target date: ${data.target_date}${data.is_demo_fallback ? " (snapshot)" : " (tomorrow, India)"}`);
-    setText("completed-date-display", `Last completed day D: ${data.last_completed_date}`);
+    setText("completed-date-display", `Last completed day D: ${data.last_completed_date}${weatherFetchNote(data)}`);
     setText("predicted-temp-val", data.predicted_temp.toFixed(1));
 
     const interval = data.interval_80;

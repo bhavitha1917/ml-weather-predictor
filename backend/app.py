@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 
 import joblib
@@ -35,12 +36,16 @@ from backend.live_data import (
     IST,
     LIVE_FORECAST_DAYS,
     LIVE_PAST_DAYS,
+    SCHEDULED_CACHE_TTL_SECONDS,
+    SCHEDULED_RETRY_SECONDS,
     LiveWeatherCache,
     WeatherDataError,
     build_observation_window,
     fetch_live_recent_weather,
+    fetch_scheduled_weather,
     forecast_dates,
     ist_now,
+    scheduled_weather_url,
 )
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,6 +67,8 @@ EVALUATION = {}       # city_key -> verified re-evaluation (models/evaluation_re
 FALLBACK_SAMPLES = {}  # city_key -> demo snapshot captured from a real run
 ARTIFACT_ERRORS = {}  # city_key -> list of problems found while loading
 LIVE_WEATHER_CACHE = LiveWeatherCache()  # validated Open-Meteo responses (30 min) + HTTP 429 cooldown
+SCHEDULED_WEATHER_CACHE = LiveWeatherCache(ttl_seconds=SCHEDULED_CACHE_TTL_SECONDS)  # validated scheduled-file entries
+SCHEDULED_FAILURES = {}  # city_key -> monotonic time the scheduled file was last unusable (retried after 5 min)
 
 FEATURE_DESCRIPTIONS = {
     "temp_lag_0": ("Max temperature on day D", "Most recent completed day (persistence signal)"),
@@ -241,6 +248,33 @@ def _value_or_none(value):
     return None if value is None or (isinstance(value, float) and np.isnan(value)) else value
 
 
+def scheduled_weather(city_key: str, coords: dict, last_completed, now):
+    """
+    Validated weather data from the scheduled GitHub Actions fetch as (raw, fetched_at), or None
+    when it is disabled, missing, outdated or invalid (the caller then asks Open-Meteo directly).
+    After a failure the file is not read again for this city for SCHEDULED_RETRY_SECONDS.
+    """
+    if scheduled_weather_url() is None:
+        return None
+    failed_at = SCHEDULED_FAILURES.get(city_key)
+    if failed_at is not None and time.monotonic() - failed_at < SCHEDULED_RETRY_SECONDS:
+        return None
+    try:
+        payload, fetched_at, _, _ = SCHEDULED_WEATHER_CACHE.get(
+            (city_key, last_completed.isoformat()),
+            fetch=lambda: fetch_scheduled_weather(city_key, coords, last_completed, now),
+            validate=lambda p: build_observation_window(p["raw"], last_completed),
+            now_ist=now,
+            fetched_at_of=lambda p: p["fetched_at"],
+        )
+    except WeatherDataError as e:
+        SCHEDULED_FAILURES[city_key] = time.monotonic()
+        logger.info("Scheduled weather data not used for %s (%s): %s", city_key, e.reason, e)
+        return None
+    SCHEDULED_FAILURES.pop(city_key, None)
+    return payload["raw"], fetched_at
+
+
 def predict_city(city_key: str, now=None, raw_data=None) -> dict:
     """
     Run the live forecasting pipeline for one city.
@@ -257,9 +291,17 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
     last_completed, target = forecast_dates(now)
     target_date = target.isoformat()
 
-    weather_fetched_at, from_cache, stale_error = now, False, None
+    weather_fetched_at, from_cache, stale_error, origin = now, False, None, None
+    scheduled = None
     if raw_data is None:
         coords = CITIES[city_key.capitalize()]
+        # 1. The scheduled fetch (no Open-Meteo call from this server); 2. Open-Meteo directly
+        scheduled = scheduled_weather(city_key, coords, last_completed, now)
+    if scheduled is not None:
+        raw_data, weather_fetched_at = scheduled
+        origin = "github_actions"
+    elif raw_data is None:
+        origin = "open_meteo_direct"
         raw_data, weather_fetched_at, from_cache, stale_error = LIVE_WEATHER_CACHE.get(
             (city_key, last_completed.isoformat(), LIVE_PAST_DAYS, LIVE_FORECAST_DAYS),
             fetch=lambda: fetch_live_recent_weather(coords, past_days=LIVE_PAST_DAYS, forecast_days=LIVE_FORECAST_DAYS),
@@ -324,10 +366,14 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
         "target_date": target_date,
         "last_completed_date": last_completed.isoformat(),
         "generated_at": now.isoformat(timespec="seconds"),
+        # "scheduled": validated Open-Meteo data fetched by the hourly GitHub Actions job (under 3 h old);
         # "live_cached": the same validated Open-Meteo data, reused for up to 30 minutes;
         # "live_stale": older same-day validated data, reused only while Open-Meteo is rate-limiting
-        "data_source": "live_stale" if stale_error is not None else "live_cached" if from_cache else "live",
+        "data_source": ("scheduled" if origin == "github_actions" else "live_stale" if stale_error is not None
+                        else "live_cached" if from_cache else "live"),
         "stale_reason": stale_error.reason if stale_error is not None else None,
+        # Who fetched the weather data from Open-Meteo: "github_actions" or "open_meteo_direct"
+        "weather_data_origin": origin,
         "weather_data_fetched_at": weather_fetched_at.astimezone(IST).isoformat(timespec="seconds"),
         "predicted_temp": predicted_val,
         "model_breakdown": {
