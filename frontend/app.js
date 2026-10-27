@@ -166,6 +166,17 @@ function renderDemoBanner(data) {
         document.getElementById("banner-text").innerHTML =
             `<strong>Demo snapshot, not today's forecast.</strong> ${escapeHtml(data.fallback_message || "")}`;
         banner.classList.remove("hidden");
+    } else if (data.data_source === "live_stale") {
+        // Real same-day observations, reused because the weather service is rate-limiting requests
+        const fetchedAt = data.weather_data_fetched_at
+            ? `${data.weather_data_fetched_at.replace("T", " ").slice(0, 16)} IST` : "an earlier time today";
+        const reason = data.stale_reason === "rate_limited"
+            ? "the weather service is limiting requests" : "fresh weather data could not be fetched";
+        document.getElementById("banner-text").innerHTML =
+            `<strong>Using earlier live data.</strong> Because ${escapeHtml(reason)}, this forecast uses ` +
+            `weather data fetched at ${escapeHtml(fetchedAt)}. The current conditions and the official forecast ` +
+            `shown below also come from that earlier fetch and may be out of date.`;
+        banner.classList.remove("hidden");
     } else {
         banner.classList.add("hidden");
     }

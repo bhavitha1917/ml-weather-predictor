@@ -257,15 +257,19 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
     last_completed, target = forecast_dates(now)
     target_date = target.isoformat()
 
-    weather_fetched_at, from_cache = now, False
+    weather_fetched_at, from_cache, stale_error = now, False, None
     if raw_data is None:
         coords = CITIES[city_key.capitalize()]
-        raw_data, weather_fetched_at, from_cache = LIVE_WEATHER_CACHE.get(
+        raw_data, weather_fetched_at, from_cache, stale_error = LIVE_WEATHER_CACHE.get(
             (city_key, last_completed.isoformat(), LIVE_PAST_DAYS, LIVE_FORECAST_DAYS),
             fetch=lambda: fetch_live_recent_weather(coords, past_days=LIVE_PAST_DAYS, forecast_days=LIVE_FORECAST_DAYS),
             validate=lambda raw: build_observation_window(raw, last_completed),
             now_ist=now,
         )
+        if stale_error is not None:
+            logger.warning("Live data unusable for %s (%s): %s; reusing validated weather data fetched at %s",
+                           city_key, stale_error.reason, stale_error,
+                           weather_fetched_at.astimezone(IST).isoformat(timespec="seconds"))
 
     # Validated, consecutive completed days D-6 .. D (raises WeatherDataError otherwise);
     # cached responses go through exactly the same check
@@ -320,8 +324,10 @@ def predict_city(city_key: str, now=None, raw_data=None) -> dict:
         "target_date": target_date,
         "last_completed_date": last_completed.isoformat(),
         "generated_at": now.isoformat(timespec="seconds"),
-        # "live_cached": the same validated Open-Meteo data, reused for up to 30 minutes
-        "data_source": "live_cached" if from_cache else "live",
+        # "live_cached": the same validated Open-Meteo data, reused for up to 30 minutes;
+        # "live_stale": older same-day validated data, reused only while Open-Meteo is rate-limiting
+        "data_source": "live_stale" if stale_error is not None else "live_cached" if from_cache else "live",
+        "stale_reason": stale_error.reason if stale_error is not None else None,
         "weather_data_fetched_at": weather_fetched_at.astimezone(IST).isoformat(timespec="seconds"),
         "predicted_temp": predicted_val,
         "model_breakdown": {

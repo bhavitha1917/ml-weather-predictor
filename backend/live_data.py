@@ -38,6 +38,10 @@ MAX_ERROR_DETAIL_CHARS = 200
 
 # Validated Open-Meteo responses are reused for this long (see LiveWeatherCache)
 LIVE_CACHE_TTL_SECONDS = 30 * 60
+# While rate-limited, an expired same-day response may be reused (labelled stale) up to this age.
+# Observations D-6 .. D do not change during the day, but the current conditions and the
+# official forecast in the same response do, so the reuse window is kept short.
+MAX_STALE_AGE_SECONDS = 3 * 60 * 60
 # After HTTP 429, no request is sent for Retry-After seconds, or this long if the header is absent
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 15 * 60
 MAX_RATE_LIMIT_BACKOFF_SECONDS = 24 * 60 * 60
@@ -198,13 +202,19 @@ class LiveWeatherCache:
     - After HTTP 429 no upstream request is sent until the cooldown ends (Retry-After, else a default).
       The quota is per server IP, so the cooldown applies to every city. Requests during the
       cooldown fail with reason "rate_limited", and the caller shows its usual fallback.
+    - Stale reuse: if the entry has expired but is younger than max_stale_seconds and was fetched
+      on the same Indian day, it is returned (with the rate-limit error) instead of failing, but only
+      when the cooldown is active or the fetch gets HTTP 429. Timeouts, 5xx and invalid data never
+      trigger stale reuse, and no extra upstream request is ever sent for it.
     This reduces how often the API is called; it does not work around an exhausted quota.
     """
 
     def __init__(self, ttl_seconds=LIVE_CACHE_TTL_SECONDS,
                  default_backoff_seconds=DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
-                 max_backoff_seconds=MAX_RATE_LIMIT_BACKOFF_SECONDS, clock=time.monotonic):
+                 max_backoff_seconds=MAX_RATE_LIMIT_BACKOFF_SECONDS,
+                 max_stale_seconds=MAX_STALE_AGE_SECONDS, clock=time.monotonic):
         self.ttl_seconds = ttl_seconds
+        self.max_stale_seconds = max_stale_seconds
         self.default_backoff_seconds = default_backoff_seconds
         self.max_backoff_seconds = max_backoff_seconds
         self._clock = clock
@@ -234,38 +244,51 @@ class LiveWeatherCache:
         with self._lock:
             self._blocked_until = self._clock() + wait
 
+    def _stale_entry(self, entry, now_ist: datetime):
+        """The expired entry if it may still be reused while rate-limited, else None."""
+        if entry is None or self._clock() - entry[0] >= self.max_stale_seconds:
+            return None
+        if entry[1].astimezone(IST).date() != now_ist.astimezone(IST).date():
+            return None  # never reuse data fetched on a previous Indian day
+        return entry
+
     def get(self, key, fetch, validate, now_ist: datetime):
         """
-        Return (payload, fetched_at, from_cache). fetch() calls the API; validate(payload) raises
-        WeatherDataError for unusable data. The returned payload is a copy the caller may modify.
+        Return (payload, fetched_at, from_cache, stale_error). fetch() calls the API; validate(payload)
+        raises WeatherDataError for unusable data. The returned payload is a copy the caller may modify.
+        stale_error is None for fresh or cached data; for a reused stale entry it is the rate-limit
+        WeatherDataError that prevented a refresh.
         """
         with self._lock_for(key):
             with self._lock:
                 entry = self._entries.get(key)
-                if entry is not None and self._clock() - entry[0] >= self.ttl_seconds:
-                    del self._entries[key]
-                    entry = None
-            if entry is not None:
+            if entry is not None and self._clock() - entry[0] < self.ttl_seconds:
                 _, fetched_at, payload = entry
-                return copy.deepcopy(payload), fetched_at, True
+                return copy.deepcopy(payload), fetched_at, True, None
+            stale = self._stale_entry(entry, now_ist)
 
             remaining = self.cooldown_remaining()
             if remaining > 0:
-                raise WeatherDataError(
+                error = WeatherDataError(
                     "rate_limited",
                     f"Open-Meteo rate limit: no request sent; cooling down for another {remaining:.0f} s")
+                if stale is None:
+                    raise error
+                return copy.deepcopy(stale[2]), stale[1], True, error
 
             try:
                 payload = fetch()
             except WeatherDataError as e:
                 if e.http_status == 429:
                     self._start_cooldown(e.retry_after_seconds)
+                    if stale is not None:
+                        return copy.deepcopy(stale[2]), stale[1], True, e
                 raise
             validate(payload)
             stored_at = self._clock()
             with self._lock:
-                # Drop expired entries (e.g. previous days' keys, which are never read again)
-                for old_key in [k for k, (t, _, _) in self._entries.items() if stored_at - t >= self.ttl_seconds]:
+                # Drop entries too old even for stale reuse (e.g. previous days' keys, never read again)
+                for old_key in [k for k, (t, _, _) in self._entries.items() if stored_at - t >= self.max_stale_seconds]:
                     del self._entries[old_key]
                 self._entries[key] = (stored_at, now_ist, copy.deepcopy(payload))
-            return payload, now_ist, False
+            return payload, now_ist, False, None
